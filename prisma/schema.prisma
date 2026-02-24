@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Sektioner ────────────────────────────────────────────
+model Section {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#2F5496")
+  type      String   // "fence" | "pp"
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  fences        Fence[]
+  polesOrPlanks PoleOrPlank[]
+
+  @@map("sections")
+}
+
+// ─── Hinder (Fences) ─────────────────────────────────────
+model Fence {
+  id        String   @id @default(cuid())
+  name      String
+  sectionId String
+  section   Section  @relation(fields: [sectionId], references: [id])
+  checked   Boolean  @default(false)
+  notes     String   @default("")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  images     FenceImage[]
+  components FenceComponent[]
+
+  @@map("fences")
+}
+
+// ─── Hinderbilder ─────────────────────────────────────────
+model FenceImage {
+  id        String   @id @default(cuid())
+  fenceId   String
+  fence     Fence    @relation(fields: [fenceId], references: [id], onDelete: Cascade)
+  imageUrl  String   @db.Text
+  caption   String   @default("")
+  isPrimary Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("fence_images")
+}
+
+// ─── Hinderkomponenter ────────────────────────────────────
+model FenceComponent {
+  id          String   @id @default(cuid())
+  fenceId     String
+  fence       Fence    @relation(fields: [fenceId], references: [id], onDelete: Cascade)
+  type        String   // "Wings" | "Poles" | "Fillers" | custom
+  count       Int      @default(0)
+  description String   @default("")
+  bomId       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("fence_components")
+}
+
+// ─── Poles & Planks ───────────────────────────────────────
+model PoleOrPlank {
+  id           String   @id @default(cuid())
+  name         String
+  sectionId    String
+  section      Section  @relation(fields: [sectionId], references: [id])
+  type         String   // "pole" | "plank" | "gate"
+  length       Float    @default(2.5)   // 2.5 | 3.0 | 3.2
+  width        Float    @default(0.1)   // 0.1 for poles, variable for planks
+  colorPattern Json     @default("[]")  // Array of { color: string, percent: number }
+  colorImage   String   @default("") @db.Text  // base64 PNG for legacy import
+  checked      Boolean  @default(false)
+  count        Int      @default(0)
+  bomId        String   @default("")
+  note         String   @default("")
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("poles_or_planks")
+}
