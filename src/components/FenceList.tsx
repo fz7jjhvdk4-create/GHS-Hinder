@@ -19,7 +19,7 @@ interface FenceImage {
   isPrimary: boolean;
 }
 
-interface FenceComponent {
+export interface FenceComponent {
   id: string;
   type: string;
   count: number;
@@ -91,14 +91,23 @@ export function FenceList() {
     toastTimeout.current = setTimeout(() => setToast(null), 2000);
   }
 
-  // Optimistic update: toggle checked
+  // Recalculate wings stat from current fences
+  function recalcWings(fencesList: Fence[]): number {
+    return fencesList.reduce((sum, f) => {
+      const wingsComp = f.components.find(
+        (c) => c.type.toLowerCase() === "wings"
+      );
+      return sum + (wingsComp?.count ?? 0);
+    }, 0);
+  }
+
+  // ─── Fence handlers ──────────────────────────────────────
+
   async function handleToggleChecked(fenceId: string) {
     const fence = fences.find((f) => f.id === fenceId);
     if (!fence) return;
 
     const newChecked = !fence.checked;
-
-    // Optimistic update
     setFences((prev) =>
       prev.map((f) => (f.id === fenceId ? { ...f, checked: newChecked } : f))
     );
@@ -116,7 +125,6 @@ export function FenceList() {
         body: JSON.stringify({ checked: newChecked }),
       });
     } catch {
-      // Revert on error
       setFences((prev) =>
         prev.map((f) =>
           f.id === fenceId ? { ...f, checked: !newChecked } : f
@@ -131,13 +139,10 @@ export function FenceList() {
     }
   }
 
-  // Save notes with debounce
   async function handleNotesChange(fenceId: string, notes: string) {
-    // Optimistic update
     setFences((prev) =>
       prev.map((f) => (f.id === fenceId ? { ...f, notes } : f))
     );
-
     try {
       await fetch(`/api/fences/${fenceId}`, {
         method: "PATCH",
@@ -149,15 +154,126 @@ export function FenceList() {
     }
   }
 
+  // ─── Component handlers ─────────────────────────────────
+
+  async function handleComponentUpdate(
+    compId: string,
+    fenceId: string,
+    data: Partial<FenceComponent>
+  ) {
+    // Optimistic update
+    setFences((prev) => {
+      const updated = prev.map((f) => {
+        if (f.id !== fenceId) return f;
+        return {
+          ...f,
+          components: f.components.map((c) =>
+            c.id === compId ? { ...c, ...data } : c
+          ),
+        };
+      });
+      // Recalculate wings if count changed
+      if (data.count !== undefined) {
+        setStats((s) => ({ ...s, wings: recalcWings(updated) }));
+      }
+      return updated;
+    });
+
+    try {
+      await fetch(`/api/components/${compId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+    } catch {
+      showToast("❌ Kunde inte spara komponent");
+      fetchData(); // Revert by refetching
+    }
+  }
+
+  async function handleComponentAdd(fenceId: string, type: string) {
+    // Optimistic: add temp component
+    const tempId = "temp_" + Date.now();
+    setFences((prev) =>
+      prev.map((f) => {
+        if (f.id !== fenceId) return f;
+        return {
+          ...f,
+          components: [
+            ...f.components,
+            { id: tempId, type, count: 0, description: "", bomId: "" },
+          ],
+        };
+      })
+    );
+
+    try {
+      const res = await fetch("/api/components", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fenceId, type }),
+      });
+      const newComp = await res.json();
+
+      // Replace temp with real
+      setFences((prev) =>
+        prev.map((f) => {
+          if (f.id !== fenceId) return f;
+          return {
+            ...f,
+            components: f.components.map((c) =>
+              c.id === tempId ? newComp : c
+            ),
+          };
+        })
+      );
+      showToast(`➕ ${type} tillagd`);
+    } catch {
+      // Remove temp
+      setFences((prev) =>
+        prev.map((f) => {
+          if (f.id !== fenceId) return f;
+          return {
+            ...f,
+            components: f.components.filter((c) => c.id !== tempId),
+          };
+        })
+      );
+      showToast("❌ Kunde inte lägga till komponent");
+    }
+  }
+
+  async function handleComponentDelete(compId: string, fenceId: string) {
+    // Optimistic
+    const prevFences = fences;
+    setFences((prev) => {
+      const updated = prev.map((f) => {
+        if (f.id !== fenceId) return f;
+        return {
+          ...f,
+          components: f.components.filter((c) => c.id !== compId),
+        };
+      });
+      setStats((s) => ({ ...s, wings: recalcWings(updated) }));
+      return updated;
+    });
+    showToast("🗑️ Komponent borttagen");
+
+    try {
+      await fetch(`/api/components/${compId}`, { method: "DELETE" });
+    } catch {
+      setFences(prevFences);
+      showToast("❌ Kunde inte ta bort");
+    }
+  }
+
   // ─── Filter & Search ─────────────────────────────────────
 
   const filteredFences = fences.filter((f) => {
-    // Search
     if (search) {
       const q = search.toLowerCase();
       if (!f.name.toLowerCase().includes(q)) return false;
     }
-    // Filter
     if (filter === "klara" && !f.checked) return false;
     if (filter === "kvar" && f.checked) return false;
     if (
@@ -170,7 +286,6 @@ export function FenceList() {
     return true;
   });
 
-  // Group by section
   const groupedFences = new Map<string, Fence[]>();
   for (const fence of filteredFences) {
     const key = fence.sectionId;
@@ -178,14 +293,16 @@ export function FenceList() {
     groupedFences.get(key)!.push(fence);
   }
 
-  // Filter buttons
-  const filterOptions: { label: string; value: FilterType; variant?: string }[] =
-    [
-      { label: "Alla", value: "alla" },
-      ...sections.map((s) => ({ label: s.name, value: s.id })),
-      { label: `✅ Klara (${stats.checked})`, value: "klara", variant: "green" },
-      { label: `⬜ Kvar (${stats.remaining})`, value: "kvar", variant: "red" },
-    ];
+  const filterOptions: {
+    label: string;
+    value: FilterType;
+    variant?: string;
+  }[] = [
+    { label: "Alla", value: "alla" },
+    ...sections.map((s) => ({ label: s.name, value: s.id })),
+    { label: `✅ Klara (${stats.checked})`, value: "klara", variant: "green" },
+    { label: `⬜ Kvar (${stats.remaining})`, value: "kvar", variant: "red" },
+  ];
 
   if (loading) {
     return (
@@ -265,7 +382,6 @@ export function FenceList() {
 
             return (
               <div key={sectionId}>
-                {/* Section header */}
                 <div
                   className="mt-3 mb-1.5 rounded-lg px-3.5 py-2 text-sm font-bold text-white"
                   style={{ backgroundColor: section.color }}
@@ -276,13 +392,15 @@ export function FenceList() {
                   </span>
                 </div>
 
-                {/* Cards */}
                 {sectionFences.map((fence) => (
                   <FenceCard
                     key={fence.id}
                     fence={fence}
                     onToggleChecked={handleToggleChecked}
                     onNotesChange={handleNotesChange}
+                    onComponentUpdate={handleComponentUpdate}
+                    onComponentAdd={handleComponentAdd}
+                    onComponentDelete={handleComponentDelete}
                   />
                 ))}
               </div>
