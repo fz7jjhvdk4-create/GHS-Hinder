@@ -43,7 +43,7 @@ export function ColorPatternSVG({
     svgHeight = 8;
   }
 
-  const rx = type === "pole" ? svgHeight / 2 : 3;
+  const rx = 1; // straight/flat ends to match imported photos
 
   // Build segments using cumulative percentage rounding
   // This ensures no gaps and exact total width regardless of segment sizes
