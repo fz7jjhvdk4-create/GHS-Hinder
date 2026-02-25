@@ -34,13 +34,13 @@ export function ColorPatternSVG({
 
   let svgHeight: number;
   if (type === "gate") {
-    svgHeight = 48;
+    svgHeight = 24;
   } else if (width >= 0.2) {
     // plank
-    svgHeight = 28;
+    svgHeight = 12;
   } else {
     // pole
-    svgHeight = 14;
+    svgHeight = 8;
   }
 
   const rx = type === "pole" ? svgHeight / 2 : 3;
