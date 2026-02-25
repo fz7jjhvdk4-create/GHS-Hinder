@@ -106,9 +106,6 @@ export function PPCard({
     Array.isArray(item.colorPattern) && item.colorPattern.length > 0;
   const hasColorImage = !!item.colorImage;
 
-  const typeLabel =
-    item.type === "pole" ? "Bom" : item.type === "plank" ? "Planka" : "Gate";
-
   return (
     <div
       className="relative mb-2 overflow-hidden rounded-xl bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
@@ -144,9 +141,6 @@ export function PPCard({
               + Fargmonster
             </button>
           )}
-          <span className="text-[10px] font-medium text-gray-400">
-            {typeLabel} {item.length}m
-          </span>
         </div>
 
         {/* Info */}
