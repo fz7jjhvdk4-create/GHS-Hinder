@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import type { Fence, FenceComponent } from "./FenceList";
+import type { GalleryImage } from "./ImageGallery";
 
 interface FenceCardProps {
   fence: Fence;
@@ -14,6 +15,11 @@ interface FenceCardProps {
   ) => void;
   onComponentAdd: (fenceId: string, type: string) => void;
   onComponentDelete: (compId: string, fenceId: string) => void;
+  onImageUpload: (fenceId: string, imageData: string) => void;
+  onImageDelete: (imageId: string, fenceId: string) => void;
+  onImageSetPrimary: (imageId: string, fenceId: string) => void;
+  onImageCaptionChange: (imageId: string, fenceId: string, caption: string) => void;
+  onOpenGallery: (fenceId: string, imageIndex: number) => void;
 }
 
 const COMPONENT_TYPES = ["Wings", "Poles", "Fillers", "Planks"];
@@ -25,17 +31,21 @@ export function FenceCard({
   onComponentUpdate,
   onComponentAdd,
   onComponentDelete,
+  onImageUpload,
+  onOpenGallery,
 }: FenceCardProps) {
   const [notesValue, setNotesValue] = useState(fence.notes);
-  const [imgExpanded, setImgExpanded] = useState(false);
   const [showAddComp, setShowAddComp] = useState(false);
   const [customType, setCustomType] = useState("");
+  const [uploading, setUploading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const compDebounceRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map()
   );
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const primaryImage = fence.images?.[0]?.imageUrl;
+  const primaryImage = fence.images?.find((img: GalleryImage) => img.isPrimary) || fence.images?.[0];
+  const imageCount = fence.images?.length || 0;
 
   // Debounced notes save
   const handleNotesInput = useCallback(
@@ -71,6 +81,24 @@ export function FenceCard({
     setCustomType("");
   }
 
+  // Image upload handler - compress and convert to base64
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const compressed = await compressImage(file, 1200, 0.8);
+      onImageUpload(fence.id, compressed);
+    } catch (err) {
+      console.error("Failed to process image:", err);
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   // Which types are already used
   const usedTypes = new Set(fence.components.map((c) => c.type));
   const availableTypes = COMPONENT_TYPES.filter((t) => !usedTypes.has(t));
@@ -86,21 +114,78 @@ export function FenceCard({
       >
         {/* Top: Image + Info */}
         <div className="flex items-start gap-3 p-3 max-[600px]:flex-col">
-          {/* Image */}
+          {/* Image area */}
           <div className="relative shrink-0 max-[600px]:w-full">
             {primaryImage ? (
-              <img
-                src={primaryImage}
-                alt={fence.name}
-                onClick={() => setImgExpanded(true)}
-                className="block w-[170px] cursor-pointer rounded-lg object-cover max-[600px]:w-full max-[600px]:max-h-[200px]"
-              />
+              <div className="relative">
+                <img
+                  src={primaryImage.imageUrl}
+                  alt={fence.name}
+                  onClick={() => onOpenGallery(fence.id, 0)}
+                  className="block w-[170px] cursor-pointer rounded-lg object-cover max-[600px]:w-full max-[600px]:max-h-[200px]"
+                />
+                {/* Image count badge */}
+                {imageCount > 1 && (
+                  <div
+                    className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[0.7em] font-bold text-white cursor-pointer"
+                    onClick={() => onOpenGallery(fence.id, 0)}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                    {imageCount}
+                  </div>
+                )}
+                {/* Upload button overlay */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={uploading}
+                  className="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#2F5496]/80 text-white shadow hover:bg-[#2F5496] disabled:opacity-50"
+                  title="Lagg till bild"
+                >
+                  {uploading ? (
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             ) : (
-              <div className="flex w-[170px] min-h-[100px] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-[#aac] bg-[#e8eef7] text-xs text-[#6688bb] max-[600px]:w-full">
-                <span className="text-2xl">📷</span>
-                <span>Ingen bild</span>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-[170px] min-h-[100px] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-[#aac] bg-[#e8eef7] text-xs text-[#6688bb] hover:border-[#2F5496] hover:bg-[#dde5f3] max-[600px]:w-full"
+              >
+                {uploading ? (
+                  <div className="h-6 w-6 animate-spin rounded-full border-3 border-[#2F5496] border-t-transparent" />
+                ) : (
+                  <>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#6688bb]">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    <span>Lagg till bild</span>
+                  </>
+                )}
               </div>
             )}
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
           </div>
 
           {/* Info */}
@@ -152,7 +237,7 @@ export function FenceCard({
                 onClick={() => setShowAddComp(true)}
                 className="mt-1.5 rounded border border-dashed border-[#2F5496] bg-transparent px-2 py-0.5 text-[0.78em] text-[#2F5496] hover:bg-[#2F5496]/5"
               >
-                + Lägg till komponent
+                + Lagg till komponent
               </button>
             ) : (
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -210,28 +295,50 @@ export function FenceCard({
           />
         </div>
       </div>
-
-      {/* Image lightbox */}
-      {imgExpanded && primaryImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setImgExpanded(false)}
-        >
-          <img
-            src={primaryImage}
-            alt={fence.name}
-            className="max-h-[90vh] max-w-[90vw] rounded-xl object-contain"
-          />
-          <button
-            onClick={() => setImgExpanded(false)}
-            className="absolute right-4 top-4 rounded-full bg-white/20 px-3 py-1 text-lg text-white hover:bg-white/30"
-          >
-            ✕
-          </button>
-        </div>
-      )}
     </>
   );
+}
+
+// ─── Image compression utility ───────────────────────────
+
+function compressImage(
+  file: File,
+  maxSize: number,
+  quality: number
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+
+        // Scale down if needed
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          } else {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas context failed"));
+        ctx.drawImage(img, 0, 0, width, height);
+
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // ─── ComponentRow ─────────────────────────────────────────

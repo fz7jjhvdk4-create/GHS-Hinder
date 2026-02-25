@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { FenceCard } from "./FenceCard";
+import { ImageGallery } from "./ImageGallery";
+import type { GalleryImage } from "./ImageGallery";
 
 // ─── Types ────────────────────────────────────────────────
 interface Section {
@@ -17,6 +19,7 @@ interface FenceImage {
   imageUrl: string;
   caption: string;
   isPrimary: boolean;
+  sortOrder: number;
 }
 
 export interface FenceComponent {
@@ -64,6 +67,12 @@ export function FenceList() {
   const [filter, setFilter] = useState<FilterType>("alla");
   const [toast, setToast] = useState<string | null>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Gallery state
+  const [galleryFenceId, setGalleryFenceId] = useState<string | null>(null);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  // File input ref for gallery upload
+  const galleryFileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -161,7 +170,6 @@ export function FenceList() {
     fenceId: string,
     data: Partial<FenceComponent>
   ) {
-    // Optimistic update
     setFences((prev) => {
       const updated = prev.map((f) => {
         if (f.id !== fenceId) return f;
@@ -172,7 +180,6 @@ export function FenceList() {
           ),
         };
       });
-      // Recalculate wings if count changed
       if (data.count !== undefined) {
         setStats((s) => ({ ...s, wings: recalcWings(updated) }));
       }
@@ -187,12 +194,11 @@ export function FenceList() {
       });
     } catch {
       showToast("❌ Kunde inte spara komponent");
-      fetchData(); // Revert by refetching
+      fetchData();
     }
   }
 
   async function handleComponentAdd(fenceId: string, type: string) {
-    // Optimistic: add temp component
     const tempId = "temp_" + Date.now();
     setFences((prev) =>
       prev.map((f) => {
@@ -215,7 +221,6 @@ export function FenceList() {
       });
       const newComp = await res.json();
 
-      // Replace temp with real
       setFences((prev) =>
         prev.map((f) => {
           if (f.id !== fenceId) return f;
@@ -229,7 +234,6 @@ export function FenceList() {
       );
       showToast(`➕ ${type} tillagd`);
     } catch {
-      // Remove temp
       setFences((prev) =>
         prev.map((f) => {
           if (f.id !== fenceId) return f;
@@ -239,12 +243,11 @@ export function FenceList() {
           };
         })
       );
-      showToast("❌ Kunde inte lägga till komponent");
+      showToast("❌ Kunde inte lagga till komponent");
     }
   }
 
   async function handleComponentDelete(compId: string, fenceId: string) {
-    // Optimistic
     const prevFences = fences;
     setFences((prev) => {
       const updated = prev.map((f) => {
@@ -265,6 +268,177 @@ export function FenceList() {
       setFences(prevFences);
       showToast("❌ Kunde inte ta bort");
     }
+  }
+
+  // ─── Image handlers ─────────────────────────────────────
+
+  async function handleImageUpload(fenceId: string, imageData: string) {
+    // Optimistic: add temp image
+    const tempId = "temp_img_" + Date.now();
+    const fence = fences.find((f) => f.id === fenceId);
+    const isFirst = !fence?.images?.length;
+
+    setFences((prev) =>
+      prev.map((f) => {
+        if (f.id !== fenceId) return f;
+        return {
+          ...f,
+          images: [
+            ...f.images,
+            {
+              id: tempId,
+              imageUrl: imageData,
+              caption: "",
+              isPrimary: isFirst,
+              sortOrder: f.images.length,
+            },
+          ],
+        };
+      })
+    );
+
+    try {
+      const res = await fetch("/api/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fenceId, imageData }),
+      });
+      const newImage = await res.json();
+
+      setFences((prev) =>
+        prev.map((f) => {
+          if (f.id !== fenceId) return f;
+          return {
+            ...f,
+            images: f.images.map((img) =>
+              img.id === tempId ? newImage : img
+            ),
+          };
+        })
+      );
+      showToast("📷 Bild uppladdad");
+    } catch {
+      setFences((prev) =>
+        prev.map((f) => {
+          if (f.id !== fenceId) return f;
+          return {
+            ...f,
+            images: f.images.filter((img) => img.id !== tempId),
+          };
+        })
+      );
+      showToast("❌ Kunde inte ladda upp bild");
+    }
+  }
+
+  async function handleImageDelete(imageId: string, fenceId: string) {
+    const prevFences = fences;
+    setFences((prev) =>
+      prev.map((f) => {
+        if (f.id !== fenceId) return f;
+        const remaining = f.images.filter((img) => img.id !== imageId);
+        // If deleted was primary and there are remaining, make the first one primary
+        const deletedImg = f.images.find((img) => img.id === imageId);
+        if (deletedImg?.isPrimary && remaining.length > 0) {
+          remaining[0] = { ...remaining[0], isPrimary: true };
+        }
+        return { ...f, images: remaining };
+      })
+    );
+    showToast("🗑️ Bild borttagen");
+
+    try {
+      await fetch(`/api/images/${imageId}`, { method: "DELETE" });
+    } catch {
+      setFences(prevFences);
+      showToast("❌ Kunde inte ta bort bild");
+    }
+  }
+
+  async function handleImageSetPrimary(imageId: string, fenceId: string) {
+    setFences((prev) =>
+      prev.map((f) => {
+        if (f.id !== fenceId) return f;
+        return {
+          ...f,
+          images: f.images.map((img) => ({
+            ...img,
+            isPrimary: img.id === imageId,
+          })),
+        };
+      })
+    );
+    showToast("⭐ Primarbild andrad");
+
+    try {
+      await fetch(`/api/images/${imageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPrimary: true }),
+      });
+    } catch {
+      fetchData();
+      showToast("❌ Kunde inte andra primarbild");
+    }
+  }
+
+  async function handleImageCaptionChange(
+    imageId: string,
+    fenceId: string,
+    caption: string
+  ) {
+    setFences((prev) =>
+      prev.map((f) => {
+        if (f.id !== fenceId) return f;
+        return {
+          ...f,
+          images: f.images.map((img) =>
+            img.id === imageId ? { ...img, caption } : img
+          ),
+        };
+      })
+    );
+
+    try {
+      await fetch(`/api/images/${imageId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption }),
+      });
+    } catch {
+      showToast("❌ Kunde inte spara bildtext");
+    }
+  }
+
+  // Gallery open/close
+  function handleOpenGallery(fenceId: string, imageIndex: number) {
+    setGalleryFenceId(fenceId);
+    setGalleryIndex(imageIndex);
+  }
+
+  function handleCloseGallery() {
+    setGalleryFenceId(null);
+  }
+
+  // Handle gallery upload button (triggers file input from gallery)
+  function handleGalleryUploadClick() {
+    galleryFileInputRef.current?.click();
+  }
+
+  async function handleGalleryFileSelect(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = e.target.files?.[0];
+    if (!file || !galleryFenceId) return;
+
+    try {
+      const compressed = await compressImageForGallery(file, 1200, 0.8);
+      await handleImageUpload(galleryFenceId, compressed);
+    } catch (err) {
+      console.error("Failed to process image:", err);
+    }
+    // Reset
+    if (galleryFileInputRef.current) galleryFileInputRef.current.value = "";
   }
 
   // ─── Filter & Search ─────────────────────────────────────
@@ -304,6 +478,11 @@ export function FenceList() {
     { label: `⬜ Kvar (${stats.remaining})`, value: "kvar", variant: "red" },
   ];
 
+  // Gallery fence data
+  const galleryFence = galleryFenceId
+    ? fences.find((f) => f.id === galleryFenceId)
+    : null;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -340,7 +519,7 @@ export function FenceList() {
       <div className="mt-3">
         <input
           type="search"
-          placeholder="🔍 Sök hinder..."
+          placeholder="🔍 Sok hinder..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium transition-colors placeholder:text-gray-400 focus:border-[#2F5496] focus:outline-none"
@@ -401,6 +580,11 @@ export function FenceList() {
                     onComponentUpdate={handleComponentUpdate}
                     onComponentAdd={handleComponentAdd}
                     onComponentDelete={handleComponentDelete}
+                    onImageUpload={handleImageUpload}
+                    onImageDelete={handleImageDelete}
+                    onImageSetPrimary={handleImageSetPrimary}
+                    onImageCaptionChange={handleImageCaptionChange}
+                    onOpenGallery={handleOpenGallery}
                   />
                 ))}
               </div>
@@ -415,12 +599,80 @@ export function FenceList() {
         )}
       </div>
 
+      {/* Image Gallery Modal */}
+      {galleryFence && galleryFence.images.length > 0 && (
+        <ImageGallery
+          images={galleryFence.images as GalleryImage[]}
+          fenceName={galleryFence.name}
+          initialIndex={galleryIndex}
+          onClose={handleCloseGallery}
+          onSetPrimary={(imageId) =>
+            handleImageSetPrimary(imageId, galleryFence.id)
+          }
+          onDelete={(imageId) =>
+            handleImageDelete(imageId, galleryFence.id)
+          }
+          onCaptionChange={(imageId, caption) =>
+            handleImageCaptionChange(imageId, galleryFence.id, caption)
+          }
+          onUpload={handleGalleryUploadClick}
+        />
+      )}
+
+      {/* Hidden file input for gallery uploads */}
+      <input
+        ref={galleryFileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleGalleryFileSelect}
+        className="hidden"
+      />
+
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 animate-[fadeUp_0.3s_ease] rounded-[10px] bg-[#333] px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
+        <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 animate-[fadeUp_0.3s_ease] rounded-[10px] bg-[#333] px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
           {toast}
         </div>
       )}
     </div>
   );
+}
+
+// ─── Image compression utility (for gallery upload) ──────
+
+function compressImageForGallery(
+  file: File,
+  maxSize: number,
+  quality: number
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let { width, height } = img;
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          } else {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas context failed"));
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }

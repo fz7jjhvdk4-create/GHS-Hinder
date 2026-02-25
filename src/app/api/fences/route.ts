@@ -10,8 +10,7 @@ export async function GET() {
       include: {
         section: true,
         images: {
-          where: { isPrimary: true },
-          take: 1,
+          orderBy: { sortOrder: "asc" },
         },
         components: true,
       },
