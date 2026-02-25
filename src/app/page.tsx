@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { FenceList } from "@/components/FenceList";
+import { PPList } from "@/components/PPList";
 
 type Tab = "fences" | "pp" | "publish";
 
@@ -60,14 +61,7 @@ export default function Home() {
         {/* Tab content */}
         <div className="mt-3">
           {activeTab === "fences" && <FenceList />}
-          {activeTab === "pp" && (
-            <div className="rounded-xl bg-white p-8 text-center shadow-sm">
-              <span className="text-4xl">📏</span>
-              <p className="mt-3 text-sm font-medium text-gray-400">
-                Poles &amp; Planks — kommer i US-007
-              </p>
-            </div>
-          )}
+          {activeTab === "pp" && <PPList />}
           {activeTab === "publish" && (
             <div className="rounded-xl bg-white p-8 text-center shadow-sm">
               <span className="text-4xl">📋</span>

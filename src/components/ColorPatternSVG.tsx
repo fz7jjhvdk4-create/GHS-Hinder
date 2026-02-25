@@ -1,0 +1,117 @@
+"use client";
+
+export interface ColorSegment {
+  color: string;
+  percent: number;
+}
+
+interface ColorPatternSVGProps {
+  colorPattern: ColorSegment[];
+  type: string; // "pole" | "plank" | "gate"
+  length: number; // 2.5, 3.0, 3.2
+  width: number; // 0.1, 0.2
+  maxWidth?: number;
+  onClick?: () => void;
+  className?: string;
+}
+
+export function ColorPatternSVG({
+  colorPattern,
+  type,
+  length,
+  width,
+  maxWidth = 160,
+  onClick,
+  className = "",
+}: ColorPatternSVGProps) {
+  // Calculate proportional dimensions
+  const lengthScale = length / 3.2; // normalize to max length
+  const svgWidth = Math.round(maxWidth * lengthScale);
+
+  let svgHeight: number;
+  if (type === "gate") {
+    svgHeight = 48;
+  } else if (width >= 0.2) {
+    // plank
+    svgHeight = 28;
+  } else {
+    // pole
+    svgHeight = 14;
+  }
+
+  const rx = type === "pole" ? svgHeight / 2 : 3;
+
+  // Build segments
+  let segments: { x: number; w: number; color: string }[] = [];
+  if (colorPattern.length > 0) {
+    let xOffset = 0;
+    segments = colorPattern.map((seg, i) => {
+      const w = (seg.percent / 100) * svgWidth;
+      const s = { x: xOffset, w, color: seg.color };
+      xOffset += w;
+      return s;
+    });
+  }
+
+  return (
+    <svg
+      width={svgWidth}
+      height={svgHeight}
+      viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+      onClick={onClick}
+      className={`${onClick ? "cursor-pointer" : ""} ${className}`}
+      role={onClick ? "button" : undefined}
+    >
+      {/* Clip path for rounded shape */}
+      <defs>
+        <clipPath id={`clip-${svgWidth}-${svgHeight}`}>
+          <rect
+            x={0}
+            y={0}
+            width={svgWidth}
+            height={svgHeight}
+            rx={rx}
+            ry={rx}
+          />
+        </clipPath>
+      </defs>
+
+      {/* Color segments */}
+      <g clipPath={`url(#clip-${svgWidth}-${svgHeight})`}>
+        {segments.length > 0 ? (
+          segments.map((seg, i) => (
+            <rect
+              key={i}
+              x={seg.x}
+              y={0}
+              width={seg.w + 0.5}
+              height={svgHeight}
+              fill={seg.color}
+            />
+          ))
+        ) : (
+          <rect
+            x={0}
+            y={0}
+            width={svgWidth}
+            height={svgHeight}
+            fill="#e5e7eb"
+          />
+        )}
+      </g>
+
+      {/* Border */}
+      <rect
+        x={0.5}
+        y={0.5}
+        width={svgWidth - 1}
+        height={svgHeight - 1}
+        fill="none"
+        stroke="#94a3b8"
+        strokeWidth={0.5}
+        rx={rx}
+        ry={rx}
+      />
+    </svg>
+  );
+}
