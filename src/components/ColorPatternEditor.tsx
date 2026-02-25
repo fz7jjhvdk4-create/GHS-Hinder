@@ -42,7 +42,7 @@ const PRESET_COLORS = [
   { color: "#1abc9c", label: "Turkos" },
 ];
 
-const MIN_SEGMENT_PERCENT = 5; // minimum 5% per segment
+const MIN_SEGMENT_PERCENT = 2; // minimum 2% per segment
 
 export function ColorPatternEditor({
   item,
@@ -87,7 +87,7 @@ export function ColorPatternEditor({
 
   // ── Stripe handlers ──
   function setSegmentCount(count: number) {
-    const clamped = Math.max(1, Math.min(8, count));
+    const clamped = Math.max(1, Math.min(20, count));
     const pct = Math.round((100 / clamped) * 100) / 100;
     const newSegments: ColorSegment[] = [];
     for (let i = 0; i < clamped; i++) {
@@ -218,35 +218,39 @@ export function ColorPatternEditor({
             )}
 
             {/* Segment count + equal button */}
-            <div className="mb-3">
-              <div className="mb-1.5 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold text-gray-500">
                   Antal falt
                 </label>
-                {segments.length > 1 && (
+                <div className="flex items-center rounded-lg border border-gray-200">
                   <button
-                    onClick={makeEqual}
-                    className="rounded-md bg-gray-100 px-2.5 py-1 text-[10px] font-bold text-gray-500 hover:bg-gray-200"
+                    onClick={() => setSegmentCount(segments.length - 1)}
+                    disabled={segments.length <= 1}
+                    className="flex h-8 w-8 items-center justify-center rounded-l-lg text-sm font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-30"
                   >
-                    ↔ Lika stora
+                    −
                   </button>
-                )}
-              </div>
-              <div className="flex gap-1">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                  <span className="flex h-8 w-10 items-center justify-center border-x border-gray-200 bg-gray-50 text-xs font-bold text-[#b8860b]">
+                    {segments.length}
+                  </span>
                   <button
-                    key={n}
-                    onClick={() => setSegmentCount(n)}
-                    className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold transition-colors ${
-                      segments.length === n
-                        ? "bg-[#b8860b] text-white"
-                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                    }`}
+                    onClick={() => setSegmentCount(segments.length + 1)}
+                    disabled={segments.length >= 20}
+                    className="flex h-8 w-8 items-center justify-center rounded-r-lg text-sm font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-30"
                   >
-                    {n}
+                    +
                   </button>
-                ))}
+                </div>
               </div>
+              {segments.length > 1 && (
+                <button
+                  onClick={makeEqual}
+                  className="rounded-md bg-gray-100 px-2.5 py-1 text-[10px] font-bold text-gray-500 hover:bg-gray-200"
+                >
+                  ↔ Lika stora
+                </button>
+              )}
             </div>
 
             {/* Segment colors */}
