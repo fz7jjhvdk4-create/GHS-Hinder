@@ -20,14 +20,17 @@ ghs-hinder-app/
       page.tsx              # Main page (3 tabs: Hinder, PP, Publicera)
       layout.tsx            # Root layout + ServiceWorkerRegistrar
       login/page.tsx        # PIN login page
+      view/
+        page.tsx              # Public read-only inventory view (no auth required)
+        PrintButton.tsx       # Client component for print button
       api/
         auth/               # login + logout
-        fences/             # GET/POST + [id] PATCH/DELETE
+        fences/             # GET/POST + [id] PATCH/DELETE (incl. name rename)
         components/         # Fence components CRUD
         images/             # Fence images CRUD + reorder
-        pp/                 # Poles & Planks CRUD
+        pp/                 # Poles & Planks CRUD (incl. name rename)
         sections/           # Sections CRUD + reorder
-        export/             # Standalone HTML export
+        export/             # Standalone HTML export (public, no auth)
         health/             # Health check for connectivity
     components/
       FenceList.tsx         # Fence inventory list (main)
@@ -40,7 +43,7 @@ ghs-hinder-app/
       SectionHeader.tsx     # Collapsible section headers
       ConnectionStatus.tsx  # Online/offline/syncing banner
       ServiceWorkerRegistrar.tsx
-      PublishTab.tsx         # Stats overview + HTML export
+      PublishTab.tsx         # Stats overview + public link + HTML export
       LogoutButton.tsx
     lib/
       db.ts                 # Prisma client (Neon adapter)
@@ -53,7 +56,7 @@ ghs-hinder-app/
     schema.prisma           # Database schema
     prisma.config.ts        # Prisma config with Neon adapter
   public/
-    sw.js                   # Service Worker (app shell caching)
+    sw.js                   # Service Worker v2 (network-first pages, cache-first assets)
     manifest.json           # PWA manifest
     ghs-logo.jpg            # Logo
 ```
@@ -76,7 +79,8 @@ ghs-hinder-app/
 
 - PIN codes: `ghs2026`, `ghs`, `ghs2026arena`
 - Session: httpOnly cookie `ghs_session`, base64 JSON, 30-day expiry
-- Middleware checks all routes except `/login`, `/api/auth/*`, `/_next/*`, static files
+- Middleware checks all routes except `/login`, `/api/auth/*`, `/view`, `/api/export`, `/_next/*`, static files
+- Public routes (no auth): `/view` (read-only inventory), `/api/export` (HTML download)
 
 ## Key Patterns
 
@@ -86,12 +90,24 @@ All mutations use optimistic UI updates:
 2. Call `mutationFetch()` (queues offline, returns synthetic 202)
 3. No rollback needed — offline mutations are queued and replayed
 
+### Inline Rename
+- Fence names and PP names are editable inline (tap to edit)
+- Enter to save, Escape to cancel, blur to commit
+- PATCH `/api/fences/[id]` and `/api/pp/[id]` both accept `name` field
+
 ### Offline Support
 - `cachedFetch(url)` — network-first, falls back to IndexedDB cache
 - `mutationFetch(url, opts)` — tries fetch, queues in IndexedDB on network error
 - `replayQueue()` — replays queued mutations on reconnect (chronological order)
 - `ConnectionStatus` banner — red (offline), gold (syncing), green (online)
-- Service Worker caches app shell only (HTML/JS/CSS), NOT API responses
+- Service Worker (v2): **network-first for pages** (always fresh after deploy), **cache-first for static assets** (`/_next/` with content hashes)
+- API responses NOT cached by SW — handled by syncManager + IndexedDB
+
+### Public View
+- `/view` — server-rendered read-only page, no auth required
+- Shows full inventory (fences + PP) with images, components, stats
+- Print button for physical copies
+- PublishTab provides copy-link UI + "open in new tab" link
 
 ### Color Patterns (PP)
 - Dual-mode editor: "Rander" (SVG stripes) + "Foto" (photo upload)
