@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { FenceList } from "@/components/FenceList";
 import { PPList } from "@/components/PPList";
+import { PublishTab } from "@/components/PublishTab";
 
 type Tab = "fences" | "pp" | "publish";
 
@@ -62,14 +63,7 @@ export default function Home() {
         <div className="mt-3">
           {activeTab === "fences" && <FenceList />}
           {activeTab === "pp" && <PPList />}
-          {activeTab === "publish" && (
-            <div className="rounded-xl bg-white p-8 text-center shadow-sm">
-              <span className="text-4xl">📋</span>
-              <p className="mt-3 text-sm font-medium text-gray-400">
-                Publicera — kommer i US-009
-              </p>
-            </div>
-          )}
+          {activeTab === "publish" && <PublishTab />}
         </div>
       </div>
     </div>
