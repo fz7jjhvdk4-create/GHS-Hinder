@@ -134,6 +134,19 @@ export function PPList() {
     });
   }
 
+  async function handlePPRename(id: string, name: string) {
+    setItems((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, name } : i))
+    );
+    showToast("✏️ Omdopt");
+
+    await mutationFetch(`/api/pp/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+  }
+
   async function handleColorPatternSave(
     id: string,
     colorPattern: ColorSegment[],
@@ -489,6 +502,7 @@ export function PPList() {
                     sections={sections}
                     onToggleChecked={handleToggleChecked}
                     onNoteChange={handleNoteChange}
+                    onRename={handlePPRename}
                     onCountChange={handleCountChange}
                     onBomIdChange={handleBomIdChange}
                     onMovePP={handleMovePP}

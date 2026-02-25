@@ -159,6 +159,19 @@ export function FenceList() {
     });
   }
 
+  async function handleFenceRename(fenceId: string, name: string) {
+    setFences((prev) =>
+      prev.map((f) => (f.id === fenceId ? { ...f, name } : f))
+    );
+    showToast("✏️ Hinder omdopt");
+
+    await mutationFetch(`/api/fences/${fenceId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+  }
+
   // ─── Component handlers ─────────────────────────────────
 
   async function handleComponentUpdate(
@@ -759,6 +772,7 @@ export function FenceList() {
                     sections={sections}
                     onToggleChecked={handleToggleChecked}
                     onNotesChange={handleNotesChange}
+                    onRename={handleFenceRename}
                     onComponentUpdate={handleComponentUpdate}
                     onComponentAdd={handleComponentAdd}
                     onComponentDelete={handleComponentDelete}

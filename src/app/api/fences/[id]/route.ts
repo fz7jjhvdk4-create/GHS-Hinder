@@ -13,6 +13,7 @@ export async function PATCH(
     if (typeof body.checked === "boolean") data.checked = body.checked;
     if (typeof body.notes === "string") data.notes = body.notes;
     if (typeof body.sectionId === "string") data.sectionId = body.sectionId;
+    if (typeof body.name === "string") data.name = body.name.trim();
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json(

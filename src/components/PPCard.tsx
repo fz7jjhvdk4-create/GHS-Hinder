@@ -32,6 +32,7 @@ interface PPCardProps {
   sections: PPSection[];
   onToggleChecked: (id: string) => void;
   onNoteChange: (id: string, note: string) => void;
+  onRename: (id: string, name: string) => void;
   onCountChange: (id: string, count: number) => void;
   onBomIdChange: (id: string, bomId: string) => void;
   onMovePP: (id: string, newSectionId: string) => void;
@@ -44,6 +45,7 @@ export function PPCard({
   sections,
   onToggleChecked,
   onNoteChange,
+  onRename,
   onCountChange,
   onBomIdChange,
   onMovePP,
@@ -53,6 +55,9 @@ export function PPCard({
   const [noteValue, setNoteValue] = useState(item.note);
   const [countValue, setCountValue] = useState(item.count);
   const [bomIdValue, setBomIdValue] = useState(item.bomId);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(item.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const debounceRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map()
   );
@@ -66,6 +71,23 @@ export function PPCard({
   }
   if (bomIdValue !== item.bomId && !debounceRefs.current.has("bomId")) {
     setBomIdValue(item.bomId);
+  }
+
+  // Commit rename
+  function commitRename() {
+    const trimmed = nameValue.trim();
+    if (trimmed && trimmed !== item.name) {
+      onRename(item.id, trimmed);
+    } else {
+      setNameValue(item.name);
+    }
+    setEditingName(false);
+  }
+
+  function startEditingName() {
+    setNameValue(item.name);
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.select(), 0);
   }
 
   function debounce(key: string, fn: () => void) {
@@ -158,11 +180,32 @@ export function PPCard({
             >
               {item.checked ? "✓" : ""}
             </button>
-            <span
-              className={`text-sm font-bold ${item.checked ? "text-gray-400 line-through" : "text-gray-800"}`}
-            >
-              {item.name}
-            </span>
+            {editingName ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename();
+                  if (e.key === "Escape") {
+                    setNameValue(item.name);
+                    setEditingName(false);
+                  }
+                }}
+                className="flex-1 rounded border border-[#b8860b] bg-white px-1.5 py-0.5 text-sm font-bold text-gray-800 focus:outline-none"
+                autoFocus
+              />
+            ) : (
+              <span
+                onClick={startEditingName}
+                className={`cursor-pointer rounded px-1.5 py-0.5 text-sm font-bold hover:bg-gray-50 ${item.checked ? "text-gray-400 line-through" : "text-gray-800"}`}
+                title="Tryck for att byta namn"
+              >
+                {item.name}
+              </span>
+            )}
           </div>
 
           {/* Count + BOM row */}

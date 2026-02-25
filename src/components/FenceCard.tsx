@@ -16,6 +16,7 @@ interface FenceCardProps {
   sections: SectionOption[];
   onToggleChecked: (id: string) => void;
   onNotesChange: (id: string, notes: string) => void;
+  onRename: (id: string, name: string) => void;
   onComponentUpdate: (
     compId: string,
     fenceId: string,
@@ -39,6 +40,7 @@ export function FenceCard({
   sections,
   onToggleChecked,
   onNotesChange,
+  onRename,
   onComponentUpdate,
   onComponentAdd,
   onComponentDelete,
@@ -51,6 +53,9 @@ export function FenceCard({
   const [showAddComp, setShowAddComp] = useState(false);
   const [customType, setCustomType] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(fence.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const compDebounceRefs = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map()
@@ -110,6 +115,23 @@ export function FenceCard({
       // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  // Commit rename
+  function commitRename() {
+    const trimmed = nameValue.trim();
+    if (trimmed && trimmed !== fence.name) {
+      onRename(fence.id, trimmed);
+    } else {
+      setNameValue(fence.name);
+    }
+    setEditingName(false);
+  }
+
+  function startEditing() {
+    setNameValue(fence.name);
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.select(), 0);
   }
 
   // Which types are already used
@@ -215,13 +237,36 @@ export function FenceCard({
               >
                 {fence.checked ? "✓" : ""}
               </button>
-              <h3
-                className={`flex-1 text-base font-bold ${
-                  fence.checked ? "text-[#27ae60]" : "text-[#1a3a6e]"
-                }`}
-              >
-                {fence.name}
-              </h3>
+              {editingName ? (
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={nameValue}
+                  onChange={(e) => setNameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename();
+                    if (e.key === "Escape") {
+                      setNameValue(fence.name);
+                      setEditingName(false);
+                    }
+                  }}
+                  className={`flex-1 rounded border border-[#2F5496] bg-white px-1.5 py-0.5 text-base font-bold focus:outline-none ${
+                    fence.checked ? "text-[#27ae60]" : "text-[#1a3a6e]"
+                  }`}
+                  autoFocus
+                />
+              ) : (
+                <h3
+                  onClick={startEditing}
+                  className={`flex-1 cursor-pointer rounded px-1.5 py-0.5 text-base font-bold hover:bg-gray-50 ${
+                    fence.checked ? "text-[#27ae60]" : "text-[#1a3a6e]"
+                  }`}
+                  title="Tryck for att byta namn"
+                >
+                  {fence.name}
+                </h3>
+              )}
               <button
                 onClick={() => onDeleteFence(fence.id)}
                 className="shrink-0 rounded px-1.5 py-0.5 text-xs text-gray-300 hover:bg-red-50 hover:text-red-500"
