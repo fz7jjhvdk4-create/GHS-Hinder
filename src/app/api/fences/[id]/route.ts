@@ -9,10 +9,10 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    // Only allow updating checked and notes
     const data: Record<string, unknown> = {};
     if (typeof body.checked === "boolean") data.checked = body.checked;
     if (typeof body.notes === "string") data.notes = body.notes;
+    if (typeof body.sectionId === "string") data.sectionId = body.sectionId;
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json(

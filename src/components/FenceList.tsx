@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { FenceCard } from "./FenceCard";
 import { ImageGallery } from "./ImageGallery";
+import { SectionHeader } from "./SectionHeader";
 import type { GalleryImage } from "./ImageGallery";
 
 // ─── Types ────────────────────────────────────────────────
@@ -441,6 +442,141 @@ export function FenceList() {
     if (galleryFileInputRef.current) galleryFileInputRef.current.value = "";
   }
 
+  // ─── Section handlers ────────────────────────────────────
+
+  async function handleSectionRename(sectionId: string, name: string) {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, name } : s))
+    );
+    showToast("✏️ Sektion omdopt");
+
+    try {
+      await fetch(`/api/sections/${sectionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+    } catch {
+      fetchData();
+      showToast("❌ Kunde inte spara namn");
+    }
+  }
+
+  async function handleSectionColorChange(sectionId: string, color: string) {
+    setSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, color } : s))
+    );
+
+    try {
+      await fetch(`/api/sections/${sectionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ color }),
+      });
+      showToast("🎨 Farg andrad");
+    } catch {
+      fetchData();
+      showToast("❌ Kunde inte andra farg");
+    }
+  }
+
+  async function handleSectionMoveUp(sectionId: string) {
+    const idx = sections.findIndex((s) => s.id === sectionId);
+    if (idx <= 0) return;
+    const newSections = [...sections];
+    [newSections[idx - 1], newSections[idx]] = [newSections[idx], newSections[idx - 1]];
+    setSections(newSections);
+
+    try {
+      await fetch("/api/sections/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
+      });
+    } catch {
+      fetchData();
+      showToast("❌ Kunde inte flytta sektion");
+    }
+  }
+
+  async function handleSectionMoveDown(sectionId: string) {
+    const idx = sections.findIndex((s) => s.id === sectionId);
+    if (idx < 0 || idx >= sections.length - 1) return;
+    const newSections = [...sections];
+    [newSections[idx], newSections[idx + 1]] = [newSections[idx + 1], newSections[idx]];
+    setSections(newSections);
+
+    try {
+      await fetch("/api/sections/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
+      });
+    } catch {
+      fetchData();
+      showToast("❌ Kunde inte flytta sektion");
+    }
+  }
+
+  async function handleSectionDelete(sectionId: string) {
+    const prevSections = sections;
+    setSections((prev) => prev.filter((s) => s.id !== sectionId));
+
+    try {
+      const res = await fetch(`/api/sections/${sectionId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error);
+      }
+      showToast("🗑️ Sektion borttagen");
+    } catch (err) {
+      setSections(prevSections);
+      showToast(`❌ ${err instanceof Error ? err.message : "Kunde inte ta bort"}`);
+    }
+  }
+
+  async function handleAddSection() {
+    const name = prompt("Namn pa ny sektion:");
+    if (!name?.trim()) return;
+
+    try {
+      const res = await fetch("/api/sections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), type: "fence" }),
+      });
+      const newSection = await res.json();
+      setSections((prev) => [...prev, newSection]);
+      showToast("➕ Sektion skapad");
+    } catch {
+      showToast("❌ Kunde inte skapa sektion");
+    }
+  }
+
+  async function handleMoveFence(fenceId: string, newSectionId: string) {
+    const fence = fences.find((f) => f.id === fenceId);
+    if (!fence || fence.sectionId === newSectionId) return;
+
+    const prevFences = fences;
+    setFences((prev) =>
+      prev.map((f) =>
+        f.id === fenceId ? { ...f, sectionId: newSectionId } : f
+      )
+    );
+    showToast("↔️ Hinder flyttat");
+
+    try {
+      await fetch(`/api/fences/${fenceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sectionId: newSectionId }),
+      });
+    } catch {
+      setFences(prevFences);
+      showToast("❌ Kunde inte flytta hinder");
+    }
+  }
+
   // ─── Filter & Search ─────────────────────────────────────
 
   const filteredFences = fences.filter((f) => {
@@ -555,26 +691,33 @@ export function FenceList() {
       {/* Fence list grouped by section */}
       <div className="mt-4 space-y-1">
         {Array.from(groupedFences.entries()).map(
-          ([sectionId, sectionFences]) => {
+          ([sectionId, sectionFences], idx) => {
             const section = sections.find((s) => s.id === sectionId);
             if (!section) return null;
 
+            const sectionIdx = sections.findIndex((s) => s.id === sectionId);
+
             return (
               <div key={sectionId}>
-                <div
-                  className="mt-3 mb-1.5 rounded-lg px-3.5 py-2 text-sm font-bold text-white"
-                  style={{ backgroundColor: section.color }}
-                >
-                  {section.name}
-                  <span className="ml-2 text-xs font-normal opacity-80">
-                    ({sectionFences.length})
-                  </span>
-                </div>
+                <SectionHeader
+                  id={sectionId}
+                  name={section.name}
+                  color={section.color}
+                  fenceCount={sectionFences.length}
+                  isFirst={sectionIdx === 0}
+                  isLast={sectionIdx === sections.length - 1}
+                  onRename={handleSectionRename}
+                  onColorChange={handleSectionColorChange}
+                  onMoveUp={handleSectionMoveUp}
+                  onMoveDown={handleSectionMoveDown}
+                  onDelete={handleSectionDelete}
+                />
 
                 {sectionFences.map((fence) => (
                   <FenceCard
                     key={fence.id}
                     fence={fence}
+                    sections={sections}
                     onToggleChecked={handleToggleChecked}
                     onNotesChange={handleNotesChange}
                     onComponentUpdate={handleComponentUpdate}
@@ -585,6 +728,7 @@ export function FenceList() {
                     onImageSetPrimary={handleImageSetPrimary}
                     onImageCaptionChange={handleImageCaptionChange}
                     onOpenGallery={handleOpenGallery}
+                    onMoveFence={handleMoveFence}
                   />
                 ))}
               </div>
@@ -598,6 +742,14 @@ export function FenceList() {
           </div>
         )}
       </div>
+
+      {/* Add section button */}
+      <button
+        onClick={handleAddSection}
+        className="mt-3 w-full rounded-lg border-2 border-dashed border-gray-300 py-2.5 text-sm font-semibold text-gray-400 hover:border-[#2F5496] hover:text-[#2F5496]"
+      >
+        + Lagg till sektion
+      </button>
 
       {/* Image Gallery Modal */}
       {galleryFence && galleryFence.images.length > 0 && (

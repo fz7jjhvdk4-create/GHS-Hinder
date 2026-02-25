@@ -4,8 +4,15 @@ import { useState, useRef, useCallback } from "react";
 import type { Fence, FenceComponent } from "./FenceList";
 import type { GalleryImage } from "./ImageGallery";
 
+interface SectionOption {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface FenceCardProps {
   fence: Fence;
+  sections: SectionOption[];
   onToggleChecked: (id: string) => void;
   onNotesChange: (id: string, notes: string) => void;
   onComponentUpdate: (
@@ -20,12 +27,14 @@ interface FenceCardProps {
   onImageSetPrimary: (imageId: string, fenceId: string) => void;
   onImageCaptionChange: (imageId: string, fenceId: string, caption: string) => void;
   onOpenGallery: (fenceId: string, imageIndex: number) => void;
+  onMoveFence: (fenceId: string, newSectionId: string) => void;
 }
 
 const COMPONENT_TYPES = ["Wings", "Poles", "Fillers", "Planks"];
 
 export function FenceCard({
   fence,
+  sections,
   onToggleChecked,
   onNotesChange,
   onComponentUpdate,
@@ -33,6 +42,7 @@ export function FenceCard({
   onComponentDelete,
   onImageUpload,
   onOpenGallery,
+  onMoveFence,
 }: FenceCardProps) {
   const [notesValue, setNotesValue] = useState(fence.notes);
   const [showAddComp, setShowAddComp] = useState(false);
@@ -210,6 +220,21 @@ export function FenceCard({
                 {fence.name}
               </h3>
             </div>
+
+            {/* Move to section */}
+            {sections.length > 1 && (
+              <select
+                value={fence.sectionId}
+                onChange={(e) => onMoveFence(fence.id, e.target.value)}
+                className="mb-1.5 w-full rounded border border-gray-200 bg-[#fafafa] px-2 py-1 text-[0.78em] text-gray-500 focus:border-[#2F5496] focus:outline-none"
+              >
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
 
             {/* Editable components table */}
             {fence.components.length > 0 && (
