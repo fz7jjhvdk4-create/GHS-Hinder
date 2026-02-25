@@ -17,6 +17,7 @@ export function PublishTab() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     async function fetchStats() {
@@ -148,20 +149,59 @@ export function PublishTab() {
         )}
       </div>
 
+      {/* Public link card */}
+      <div className="rounded-xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
+        <h2 className="mb-2 text-sm font-bold text-[#1a3a6e]">
+          Publik lank
+        </h2>
+        <p className="mb-3 text-xs text-gray-500">
+          Dela denna lank med kollegor, banbyggare eller andra som behover se
+          inventeringen. Ingen inloggning kravs — alla med lanken kan lasa och
+          skriva ut, men inte redigera.
+        </p>
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            readOnly
+            value={`${typeof window !== "undefined" ? window.location.origin : ""}/view`}
+            className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 select-all focus:border-[#2F5496] focus:outline-none"
+            onClick={(e) => (e.target as HTMLInputElement).select()}
+          />
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/view`;
+              navigator.clipboard.writeText(url);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            className="shrink-0 rounded-lg bg-[#2F5496] px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-[#1a3a6e]"
+          >
+            {copied ? "✓ Kopierad!" : "📋 Kopiera"}
+          </button>
+        </div>
+        <a
+          href="/view"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-block text-xs text-[#2F5496] underline hover:text-[#1a3a6e]"
+        >
+          Oppna publik vy i ny flik →
+        </a>
+      </div>
+
       {/* Export card */}
       <div className="rounded-xl bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
         <h2 className="mb-2 text-sm font-bold text-[#1a3a6e]">
-          Exportera inventering
+          Exportera som fil
         </h2>
         <p className="mb-4 text-xs text-gray-500">
-          Genererar en fristaende HTML-fil med hela inventeringen. Filen fungerar
-          offline och kan delas med kollegor utan inloggning. Alla bilder baddas
-          in direkt i filen.
+          Ladda ner en fristaende HTML-fil med hela inventeringen. Filen fungerar
+          offline och kan delas via e-post. Alla bilder baddas in direkt.
         </p>
         <button
           onClick={handleExport}
           disabled={exporting}
-          className="w-full rounded-lg bg-gradient-to-br from-[#1a3a6e] to-[#27ae60] px-4 py-3 text-sm font-bold text-white shadow hover:opacity-90 active:opacity-80 disabled:opacity-50"
+          className="w-full rounded-lg border-2 border-[#1a3a6e] bg-white px-4 py-2.5 text-sm font-bold text-[#1a3a6e] shadow-sm hover:bg-[#f0f4fa] active:bg-[#e0e8f4] disabled:opacity-50"
         >
           {exporting ? (
             <span className="inline-flex items-center gap-2">
@@ -187,16 +227,9 @@ export function PublishTab() {
               Exporterar...
             </span>
           ) : (
-            "📋 Exportera som HTML"
+            "⬇️ Ladda ner HTML-fil"
           )}
         </button>
-      </div>
-
-      {/* Info card */}
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-500">
-        <strong>Tips:</strong> Den exporterade filen kan oppnas i vilken
-        webblasare som helst, skrivas ut som PDF, eller skickas via e-post. Alla
-        bilder ar inbaddade direkt i filen sa den fungerar helt offline.
       </div>
     </div>
   );
