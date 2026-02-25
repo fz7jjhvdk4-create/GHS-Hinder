@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LogoutButton } from "@/components/LogoutButton";
 import { FenceList } from "@/components/FenceList";
 import { PPList } from "@/components/PPList";
 import { PublishTab } from "@/components/PublishTab";
+import { ConnectionStatus } from "@/components/ConnectionStatus";
+import { initSyncManager } from "@/lib/syncManager";
 
 type Tab = "fences" | "pp" | "publish";
 
@@ -17,8 +19,14 @@ const tabs: { id: Tab; label: string; activeColor: string }[] = [
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("fences");
 
+  // Initialize sync manager for offline support
+  useEffect(() => {
+    initSyncManager();
+  }, []);
+
   return (
     <div className="min-h-[100dvh] bg-[#f0f2f5]">
+      <ConnectionStatus />
       {/* Header */}
       <header className="flex items-center justify-center gap-4 bg-gradient-to-br from-[#0a1628] via-[#1a3a6e] to-[#2F5496] px-5 py-4 text-white shadow-lg">
         <img

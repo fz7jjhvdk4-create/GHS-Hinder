@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { cachedFetch } from "@/lib/syncManager";
 
 interface Stats {
   fenceTotal: number;
@@ -20,12 +21,13 @@ export function PublishTab() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [fenceRes, ppRes] = await Promise.all([
-          fetch("/api/fences"),
-          fetch("/api/pp"),
-        ]);
-        const fenceData = await fenceRes.json();
-        const ppData = await ppRes.json();
+        const [fenceData, ppData] = (await Promise.all([
+          cachedFetch("/api/fences"),
+          cachedFetch("/api/pp"),
+        ])) as [
+          { stats: { total: number; checked: number; remaining: number; wings: number } },
+          { stats: { total: number; checked: number; remaining: number } },
+        ];
 
         setStats({
           fenceTotal: fenceData.stats.total,

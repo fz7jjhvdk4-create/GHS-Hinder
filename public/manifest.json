@@ -1,0 +1,22 @@
+{
+  "name": "GHS Hinderinventering",
+  "short_name": "GHS Hinder",
+  "description": "Inventering och hantering av hinder for Gothenburg Horse Show 2026",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a1628",
+  "theme_color": "#0a1628",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/ghs-logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/ghs-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

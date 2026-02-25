@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "GHS Hinder",
   },
+  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
@@ -27,7 +29,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="sv">
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorkerRegistrar />
+      </body>
     </html>
   );
 }

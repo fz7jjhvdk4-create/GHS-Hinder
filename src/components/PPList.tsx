@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { PPCard } from "./PPCard";
 import { SectionHeader } from "./SectionHeader";
 import { ColorPatternEditor } from "./ColorPatternEditor";
+import { cachedFetch, mutationFetch } from "@/lib/syncManager";
 import type { PPItem } from "./PPCard";
 import type { ColorSegment } from "./ColorPatternSVG";
 
@@ -41,11 +42,14 @@ export function PPList() {
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editorItemId, setEditorItemId] = useState<string | null>(null);
 
-  // Fetch data
+  // Fetch data (network-first, falls back to IndexedDB cache)
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/pp");
-      const data = await res.json();
+      const data = (await cachedFetch("/api/pp")) as {
+        items: PPItem[];
+        sections: PPSection[];
+        stats: Stats;
+      };
       setItems(data.items);
       setSections(data.sections);
       setStats(data.stats);
@@ -58,6 +62,13 @@ export function PPList() {
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
+
+  // Re-fetch when coming back online
+  useEffect(() => {
+    const handler = () => fetchData();
+    window.addEventListener("app-online", handler);
+    return () => window.removeEventListener("app-online", handler);
   }, [fetchData]);
 
   function showToast(message: string) {
@@ -83,70 +94,44 @@ export function PPList() {
     }));
     showToast(newChecked ? "✅ Avbockad" : "↩️ Avbockning borttagen");
 
-    try {
-      await fetch(`/api/pp/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checked: newChecked }),
-      });
-    } catch {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === id ? { ...i, checked: !newChecked } : i
-        )
-      );
-      setStats((prev) => ({
-        ...prev,
-        checked: prev.checked + (newChecked ? -1 : 1),
-        remaining: prev.remaining + (newChecked ? 1 : -1),
-      }));
-      showToast("❌ Kunde inte spara");
-    }
+    await mutationFetch(`/api/pp/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checked: newChecked }),
+    });
   }
 
   async function handleNoteChange(id: string, note: string) {
     setItems((prev) =>
       prev.map((i) => (i.id === id ? { ...i, note } : i))
     );
-    try {
-      await fetch(`/api/pp/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note }),
-      });
-    } catch {
-      showToast("❌ Kunde inte spara anteckning");
-    }
+    await mutationFetch(`/api/pp/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    });
   }
 
   async function handleCountChange(id: string, count: number) {
     setItems((prev) =>
       prev.map((i) => (i.id === id ? { ...i, count } : i))
     );
-    try {
-      await fetch(`/api/pp/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count }),
-      });
-    } catch {
-      showToast("❌ Kunde inte spara antal");
-    }
+    await mutationFetch(`/api/pp/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count }),
+    });
   }
 
   async function handleBomIdChange(id: string, bomId: string) {
     setItems((prev) =>
       prev.map((i) => (i.id === id ? { ...i, bomId } : i))
     );
-    try {
-      await fetch(`/api/pp/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bomId }),
-      });
-    } catch {
-      showToast("❌ Kunde inte spara BOM-ID");
-    }
+    await mutationFetch(`/api/pp/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bomId }),
+    });
   }
 
   async function handleColorPatternSave(
@@ -159,16 +144,11 @@ export function PPList() {
     );
     showToast(colorImage ? "📷 Bild sparad" : "🎨 Fargmonster sparat");
 
-    try {
-      await fetch(`/api/pp/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ colorPattern, colorImage }),
-      });
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte spara");
-    }
+    await mutationFetch(`/api/pp/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colorPattern, colorImage }),
+    });
   }
 
   async function handleMovePP(id: string, newSectionId: string) {
@@ -183,16 +163,11 @@ export function PPList() {
     );
     showToast("↔️ Flyttad");
 
-    try {
-      await fetch(`/api/pp/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectionId: newSectionId }),
-      });
-    } catch {
-      setItems(prevItems);
-      showToast("❌ Kunde inte flytta");
-    }
+    await mutationFetch(`/api/pp/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sectionId: newSectionId }),
+    });
   }
 
   async function handleDeletePP(id: string) {
@@ -206,12 +181,7 @@ export function PPList() {
     }));
     showToast("🗑️ Borttagen");
 
-    try {
-      await fetch(`/api/pp/${id}`, { method: "DELETE" });
-    } catch {
-      setItems(prevItems);
-      showToast("❌ Kunde inte ta bort");
-    }
+    await mutationFetch(`/api/pp/${id}`, { method: "DELETE" });
   }
 
   async function handleAddPP(sectionId: string) {
@@ -258,26 +228,22 @@ export function PPList() {
       remaining: prev.remaining + 1,
     }));
 
-    try {
-      const res = await fetch("/api/pp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), sectionId, type, length, width }),
-      });
-      const newItem = await res.json();
-      setItems((prev) =>
-        prev.map((i) => (i.id === tempId ? newItem : i))
-      );
-      showToast("➕ Tillagd");
-    } catch {
-      setItems((prev) => prev.filter((i) => i.id !== tempId));
-      setStats((prev) => ({
-        ...prev,
-        total: prev.total - 1,
-        remaining: prev.remaining - 1,
-      }));
-      showToast("❌ Kunde inte lagga till");
+    const res = await mutationFetch("/api/pp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), sectionId, type, length, width }),
+    });
+
+    if (res.status === 202) {
+      showToast("➕ Tillagd (synkas senare)");
+      return;
     }
+
+    const newItem = await res.json();
+    setItems((prev) =>
+      prev.map((i) => (i.id === tempId ? newItem : i))
+    );
+    showToast("➕ Tillagd");
   }
 
   // ─── Section handlers ────────────────────────────────────
@@ -287,33 +253,23 @@ export function PPList() {
       prev.map((s) => (s.id === sectionId ? { ...s, name } : s))
     );
     showToast("✏️ Sektion omdopt");
-    try {
-      await fetch(`/api/sections/${sectionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte spara namn");
-    }
+    await mutationFetch(`/api/sections/${sectionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
   }
 
   async function handleSectionColorChange(sectionId: string, color: string) {
     setSections((prev) =>
       prev.map((s) => (s.id === sectionId ? { ...s, color } : s))
     );
-    try {
-      await fetch(`/api/sections/${sectionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ color }),
-      });
-      showToast("🎨 Farg andrad");
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte andra farg");
-    }
+    await mutationFetch(`/api/sections/${sectionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color }),
+    });
+    showToast("🎨 Farg andrad");
   }
 
   async function handleSectionMoveUp(sectionId: string) {
@@ -322,16 +278,11 @@ export function PPList() {
     const newSections = [...sections];
     [newSections[idx - 1], newSections[idx]] = [newSections[idx], newSections[idx - 1]];
     setSections(newSections);
-    try {
-      await fetch("/api/sections/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
-      });
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte flytta sektion");
-    }
+    await mutationFetch("/api/sections/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
+    });
   }
 
   async function handleSectionMoveDown(sectionId: string) {
@@ -340,49 +291,55 @@ export function PPList() {
     const newSections = [...sections];
     [newSections[idx], newSections[idx + 1]] = [newSections[idx + 1], newSections[idx]];
     setSections(newSections);
-    try {
-      await fetch("/api/sections/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
-      });
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte flytta sektion");
-    }
+    await mutationFetch("/api/sections/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
+    });
   }
 
   async function handleSectionDelete(sectionId: string) {
     const prevSections = sections;
     setSections((prev) => prev.filter((s) => s.id !== sectionId));
-    try {
-      const res = await fetch(`/api/sections/${sectionId}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error);
-      }
-      showToast("🗑️ Sektion borttagen");
-    } catch (err) {
-      setSections(prevSections);
-      showToast(`❌ ${err instanceof Error ? err.message : "Kunde inte ta bort"}`);
+    const res = await mutationFetch(`/api/sections/${sectionId}`, { method: "DELETE" });
+    if (res.status === 202) {
+      showToast("🗑️ Sektion borttagen (synkas senare)");
+      return;
     }
+    if (!res.ok) {
+      const err = await res.json();
+      setSections(prevSections);
+      showToast(`❌ ${err.error || "Kunde inte ta bort"}`);
+      return;
+    }
+    showToast("🗑️ Sektion borttagen");
   }
 
   async function handleAddSection() {
     const name = prompt("Namn pa ny sektion:");
     if (!name?.trim()) return;
-    try {
-      const res = await fetch("/api/sections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), type: "pp" }),
-      });
-      const newSection = await res.json();
-      setSections((prev) => [...prev, newSection]);
-      showToast("➕ Sektion skapad");
-    } catch {
-      showToast("❌ Kunde inte skapa sektion");
+    const res = await mutationFetch("/api/sections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), type: "pp" }),
+    });
+
+    if (res.status === 202) {
+      const tempSection: PPSection = {
+        id: "temp_section_" + Date.now(),
+        name: name.trim(),
+        color: "#b8860b",
+        type: "pp",
+        sortOrder: sections.length,
+      };
+      setSections((prev) => [...prev, tempSection]);
+      showToast("➕ Sektion skapad (synkas senare)");
+      return;
     }
+
+    const newSection = await res.json();
+    setSections((prev) => [...prev, newSection]);
+    showToast("➕ Sektion skapad");
   }
 
   // ─── Filter & Search ─────────────────────────────────────

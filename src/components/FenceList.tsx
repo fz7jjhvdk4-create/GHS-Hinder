@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { FenceCard } from "./FenceCard";
 import { ImageGallery } from "./ImageGallery";
 import { SectionHeader } from "./SectionHeader";
+import { cachedFetch, mutationFetch } from "@/lib/syncManager";
 import type { GalleryImage } from "./ImageGallery";
 
 // ─── Types ────────────────────────────────────────────────
@@ -77,11 +78,14 @@ export function FenceList() {
   // File input ref for gallery upload
   const galleryFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch data
+  // Fetch data (network-first, falls back to IndexedDB cache)
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/fences");
-      const data = await res.json();
+      const data = (await cachedFetch("/api/fences")) as {
+        fences: Fence[];
+        sections: Section[];
+        stats: Stats;
+      };
       setFences(data.fences);
       setSections(data.sections);
       setStats(data.stats);
@@ -94,6 +98,13 @@ export function FenceList() {
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
+
+  // Re-fetch when coming back online
+  useEffect(() => {
+    const handler = () => fetchData();
+    window.addEventListener("app-online", handler);
+    return () => window.removeEventListener("app-online", handler);
   }, [fetchData]);
 
   // Show toast
@@ -130,40 +141,22 @@ export function FenceList() {
     }));
     showToast(newChecked ? "✅ Avbockad" : "↩️ Avbockning borttagen");
 
-    try {
-      await fetch(`/api/fences/${fenceId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checked: newChecked }),
-      });
-    } catch {
-      setFences((prev) =>
-        prev.map((f) =>
-          f.id === fenceId ? { ...f, checked: !newChecked } : f
-        )
-      );
-      setStats((prev) => ({
-        ...prev,
-        checked: prev.checked + (newChecked ? -1 : 1),
-        remaining: prev.remaining + (newChecked ? 1 : -1),
-      }));
-      showToast("❌ Kunde inte spara");
-    }
+    await mutationFetch(`/api/fences/${fenceId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checked: newChecked }),
+    });
   }
 
   async function handleNotesChange(fenceId: string, notes: string) {
     setFences((prev) =>
       prev.map((f) => (f.id === fenceId ? { ...f, notes } : f))
     );
-    try {
-      await fetch(`/api/fences/${fenceId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes }),
-      });
-    } catch {
-      showToast("❌ Kunde inte spara anteckning");
-    }
+    await mutationFetch(`/api/fences/${fenceId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    });
   }
 
   // ─── Component handlers ─────────────────────────────────
@@ -189,16 +182,11 @@ export function FenceList() {
       return updated;
     });
 
-    try {
-      await fetch(`/api/components/${compId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-    } catch {
-      showToast("❌ Kunde inte spara komponent");
-      fetchData();
-    }
+    await mutationFetch(`/api/components/${compId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
   }
 
   async function handleComponentAdd(fenceId: string, type: string) {
@@ -216,38 +204,30 @@ export function FenceList() {
       })
     );
 
-    try {
-      const res = await fetch("/api/components", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fenceId, type }),
-      });
-      const newComp = await res.json();
+    const res = await mutationFetch("/api/components", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fenceId, type }),
+    });
 
-      setFences((prev) =>
-        prev.map((f) => {
-          if (f.id !== fenceId) return f;
-          return {
-            ...f,
-            components: f.components.map((c) =>
-              c.id === tempId ? newComp : c
-            ),
-          };
-        })
-      );
-      showToast(`➕ ${type} tillagd`);
-    } catch {
-      setFences((prev) =>
-        prev.map((f) => {
-          if (f.id !== fenceId) return f;
-          return {
-            ...f,
-            components: f.components.filter((c) => c.id !== tempId),
-          };
-        })
-      );
-      showToast("❌ Kunde inte lagga till komponent");
+    if (res.status === 202) {
+      showToast(`➕ ${type} tillagd (synkas senare)`);
+      return;
     }
+
+    const newComp = await res.json();
+    setFences((prev) =>
+      prev.map((f) => {
+        if (f.id !== fenceId) return f;
+        return {
+          ...f,
+          components: f.components.map((c) =>
+            c.id === tempId ? newComp : c
+          ),
+        };
+      })
+    );
+    showToast(`➕ ${type} tillagd`);
   }
 
   async function handleComponentDelete(compId: string, fenceId: string) {
@@ -265,12 +245,7 @@ export function FenceList() {
     });
     showToast("🗑️ Komponent borttagen");
 
-    try {
-      await fetch(`/api/components/${compId}`, { method: "DELETE" });
-    } catch {
-      setFences(prevFences);
-      showToast("❌ Kunde inte ta bort");
-    }
+    await mutationFetch(`/api/components/${compId}`, { method: "DELETE" });
   }
 
   // ─── Image handlers ─────────────────────────────────────
@@ -300,38 +275,30 @@ export function FenceList() {
       })
     );
 
-    try {
-      const res = await fetch("/api/images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fenceId, imageData }),
-      });
-      const newImage = await res.json();
+    const res = await mutationFetch("/api/images", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fenceId, imageData }),
+    });
 
-      setFences((prev) =>
-        prev.map((f) => {
-          if (f.id !== fenceId) return f;
-          return {
-            ...f,
-            images: f.images.map((img) =>
-              img.id === tempId ? newImage : img
-            ),
-          };
-        })
-      );
-      showToast("📷 Bild uppladdad");
-    } catch {
-      setFences((prev) =>
-        prev.map((f) => {
-          if (f.id !== fenceId) return f;
-          return {
-            ...f,
-            images: f.images.filter((img) => img.id !== tempId),
-          };
-        })
-      );
-      showToast("❌ Kunde inte ladda upp bild");
+    if (res.status === 202) {
+      showToast("📷 Bild sparad (synkas senare)");
+      return;
     }
+
+    const newImage = await res.json();
+    setFences((prev) =>
+      prev.map((f) => {
+        if (f.id !== fenceId) return f;
+        return {
+          ...f,
+          images: f.images.map((img) =>
+            img.id === tempId ? newImage : img
+          ),
+        };
+      })
+    );
+    showToast("📷 Bild uppladdad");
   }
 
   async function handleImageDelete(imageId: string, fenceId: string) {
@@ -350,12 +317,7 @@ export function FenceList() {
     );
     showToast("🗑️ Bild borttagen");
 
-    try {
-      await fetch(`/api/images/${imageId}`, { method: "DELETE" });
-    } catch {
-      setFences(prevFences);
-      showToast("❌ Kunde inte ta bort bild");
-    }
+    await mutationFetch(`/api/images/${imageId}`, { method: "DELETE" });
   }
 
   async function handleImageSetPrimary(imageId: string, fenceId: string) {
@@ -373,16 +335,11 @@ export function FenceList() {
     );
     showToast("⭐ Primarbild andrad");
 
-    try {
-      await fetch(`/api/images/${imageId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isPrimary: true }),
-      });
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte andra primarbild");
-    }
+    await mutationFetch(`/api/images/${imageId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPrimary: true }),
+    });
   }
 
   async function handleImageCaptionChange(
@@ -402,15 +359,11 @@ export function FenceList() {
       })
     );
 
-    try {
-      await fetch(`/api/images/${imageId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caption }),
-      });
-    } catch {
-      showToast("❌ Kunde inte spara bildtext");
-    }
+    await mutationFetch(`/api/images/${imageId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caption }),
+    });
   }
 
   // Gallery open/close
@@ -452,16 +405,11 @@ export function FenceList() {
     );
     showToast("✏️ Sektion omdopt");
 
-    try {
-      await fetch(`/api/sections/${sectionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte spara namn");
-    }
+    await mutationFetch(`/api/sections/${sectionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
   }
 
   async function handleSectionColorChange(sectionId: string, color: string) {
@@ -469,17 +417,12 @@ export function FenceList() {
       prev.map((s) => (s.id === sectionId ? { ...s, color } : s))
     );
 
-    try {
-      await fetch(`/api/sections/${sectionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ color }),
-      });
-      showToast("🎨 Farg andrad");
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte andra farg");
-    }
+    await mutationFetch(`/api/sections/${sectionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ color }),
+    });
+    showToast("🎨 Farg andrad");
   }
 
   async function handleSectionMoveUp(sectionId: string) {
@@ -489,16 +432,11 @@ export function FenceList() {
     [newSections[idx - 1], newSections[idx]] = [newSections[idx], newSections[idx - 1]];
     setSections(newSections);
 
-    try {
-      await fetch("/api/sections/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
-      });
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte flytta sektion");
-    }
+    await mutationFetch("/api/sections/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
+    });
   }
 
   async function handleSectionMoveDown(sectionId: string) {
@@ -508,51 +446,58 @@ export function FenceList() {
     [newSections[idx], newSections[idx + 1]] = [newSections[idx + 1], newSections[idx]];
     setSections(newSections);
 
-    try {
-      await fetch("/api/sections/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
-      });
-    } catch {
-      fetchData();
-      showToast("❌ Kunde inte flytta sektion");
-    }
+    await mutationFetch("/api/sections/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sectionIds: newSections.map((s) => s.id) }),
+    });
   }
 
   async function handleSectionDelete(sectionId: string) {
     const prevSections = sections;
     setSections((prev) => prev.filter((s) => s.id !== sectionId));
 
-    try {
-      const res = await fetch(`/api/sections/${sectionId}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error);
-      }
-      showToast("🗑️ Sektion borttagen");
-    } catch (err) {
-      setSections(prevSections);
-      showToast(`❌ ${err instanceof Error ? err.message : "Kunde inte ta bort"}`);
+    const res = await mutationFetch(`/api/sections/${sectionId}`, { method: "DELETE" });
+    if (res.status === 202) {
+      showToast("🗑️ Sektion borttagen (synkas senare)");
+      return;
     }
+    if (!res.ok) {
+      const err = await res.json();
+      setSections(prevSections);
+      showToast(`❌ ${err.error || "Kunde inte ta bort"}`);
+      return;
+    }
+    showToast("🗑️ Sektion borttagen");
   }
 
   async function handleAddSection() {
     const name = prompt("Namn pa ny sektion:");
     if (!name?.trim()) return;
 
-    try {
-      const res = await fetch("/api/sections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), type: "fence" }),
-      });
-      const newSection = await res.json();
-      setSections((prev) => [...prev, newSection]);
-      showToast("➕ Sektion skapad");
-    } catch {
-      showToast("❌ Kunde inte skapa sektion");
+    const res = await mutationFetch("/api/sections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), type: "fence" }),
+    });
+
+    if (res.status === 202) {
+      // Queued offline — add temp section to UI
+      const tempSection: Section = {
+        id: "temp_section_" + Date.now(),
+        name: name.trim(),
+        color: "#2F5496",
+        type: "fence",
+        sortOrder: sections.length,
+      };
+      setSections((prev) => [...prev, tempSection]);
+      showToast("➕ Sektion skapad (synkas senare)");
+      return;
     }
+
+    const newSection = await res.json();
+    setSections((prev) => [...prev, newSection]);
+    showToast("➕ Sektion skapad");
   }
 
   async function handleMoveFence(fenceId: string, newSectionId: string) {
@@ -567,16 +512,11 @@ export function FenceList() {
     );
     showToast("↔️ Hinder flyttat");
 
-    try {
-      await fetch(`/api/fences/${fenceId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sectionId: newSectionId }),
-      });
-    } catch {
-      setFences(prevFences);
-      showToast("❌ Kunde inte flytta hinder");
-    }
+    await mutationFetch(`/api/fences/${fenceId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sectionId: newSectionId }),
+    });
   }
 
   // ─── Create & Delete fence ─────────────────────────────
@@ -606,26 +546,22 @@ export function FenceList() {
       remaining: prev.remaining + 1,
     }));
 
-    try {
-      const res = await fetch("/api/fences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), sectionId }),
-      });
-      const newFence = await res.json();
-      setFences((prev) =>
-        prev.map((f) => (f.id === tempId ? newFence : f))
-      );
-      showToast("➕ Hinder tillagt");
-    } catch {
-      setFences((prev) => prev.filter((f) => f.id !== tempId));
-      setStats((prev) => ({
-        ...prev,
-        total: prev.total - 1,
-        remaining: prev.remaining - 1,
-      }));
-      showToast("❌ Kunde inte lagga till hinder");
+    const res = await mutationFetch("/api/fences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), sectionId }),
+    });
+
+    if (res.status === 202) {
+      showToast("➕ Hinder tillagt (synkas senare)");
+      return;
     }
+
+    const newFence = await res.json();
+    setFences((prev) =>
+      prev.map((f) => (f.id === tempId ? newFence : f))
+    );
+    showToast("➕ Hinder tillagt");
   }
 
   function handleDeleteFence(fenceId: string) {
@@ -637,7 +573,7 @@ export function FenceList() {
       clearTimeout(deleteTimeout.current);
       // Execute the previous pending delete immediately
       if (pendingDelete) {
-        fetch(`/api/fences/${pendingDelete.id}`, { method: "DELETE" }).catch(() => {});
+        mutationFetch(`/api/fences/${pendingDelete.id}`, { method: "DELETE" });
       }
     }
 
@@ -655,19 +591,7 @@ export function FenceList() {
 
     // Show undo toast for 5 seconds, then actually delete
     deleteTimeout.current = setTimeout(async () => {
-      try {
-        await fetch(`/api/fences/${fenceId}`, { method: "DELETE" });
-      } catch {
-        // If delete fails, restore
-        setFences((prev) => [...prev, fence]);
-        setStats((prev) => ({
-          ...prev,
-          total: prev.total + 1,
-          checked: prev.checked + (fence.checked ? 1 : 0),
-          remaining: prev.remaining + (fence.checked ? 0 : 1),
-        }));
-        showToast("❌ Kunde inte ta bort hinder");
-      }
+      await mutationFetch(`/api/fences/${fenceId}`, { method: "DELETE" });
       setPendingDelete(null);
       deleteTimeout.current = null;
     }, 5000);
