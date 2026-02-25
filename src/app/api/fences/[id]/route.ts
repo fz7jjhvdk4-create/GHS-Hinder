@@ -35,3 +35,25 @@ export async function PATCH(
     );
   }
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    // Delete related records first (cascade not automatic for all)
+    await prisma.fenceImage.deleteMany({ where: { fenceId: id } });
+    await prisma.fenceComponent.deleteMany({ where: { fenceId: id } });
+    await prisma.fence.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting fence:", error);
+    return NextResponse.json(
+      { error: "Failed to delete fence" },
+      { status: 500 }
+    );
+  }
+}

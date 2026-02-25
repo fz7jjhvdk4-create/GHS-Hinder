@@ -68,6 +68,8 @@ export function FenceList() {
   const [filter, setFilter] = useState<FilterType>("alla");
   const [toast, setToast] = useState<string | null>(null);
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const deleteTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Fence | null>(null);
 
   // Gallery state
   const [galleryFenceId, setGalleryFenceId] = useState<string | null>(null);
@@ -577,6 +579,119 @@ export function FenceList() {
     }
   }
 
+  // ─── Create & Delete fence ─────────────────────────────
+
+  async function handleAddFence(sectionId: string) {
+    const name = prompt("Namn pa nytt hinder:");
+    if (!name?.trim()) return;
+
+    const tempId = "temp_fence_" + Date.now();
+    const section = sections.find((s) => s.id === sectionId);
+    const tempFence: Fence = {
+      id: tempId,
+      name: name.trim(),
+      sectionId,
+      section: section ?? { id: sectionId, name: "", color: "#2F5496", type: "fence", sortOrder: 0 },
+      checked: false,
+      notes: "",
+      sortOrder: 999,
+      images: [],
+      components: [],
+    };
+
+    setFences((prev) => [...prev, tempFence]);
+    setStats((prev) => ({
+      ...prev,
+      total: prev.total + 1,
+      remaining: prev.remaining + 1,
+    }));
+
+    try {
+      const res = await fetch("/api/fences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), sectionId }),
+      });
+      const newFence = await res.json();
+      setFences((prev) =>
+        prev.map((f) => (f.id === tempId ? newFence : f))
+      );
+      showToast("➕ Hinder tillagt");
+    } catch {
+      setFences((prev) => prev.filter((f) => f.id !== tempId));
+      setStats((prev) => ({
+        ...prev,
+        total: prev.total - 1,
+        remaining: prev.remaining - 1,
+      }));
+      showToast("❌ Kunde inte lagga till hinder");
+    }
+  }
+
+  function handleDeleteFence(fenceId: string) {
+    const fence = fences.find((f) => f.id === fenceId);
+    if (!fence) return;
+
+    // Cancel any previous pending delete
+    if (deleteTimeout.current) {
+      clearTimeout(deleteTimeout.current);
+      // Execute the previous pending delete immediately
+      if (pendingDelete) {
+        fetch(`/api/fences/${pendingDelete.id}`, { method: "DELETE" }).catch(() => {});
+      }
+    }
+
+    // Remove from UI immediately
+    setFences((prev) => prev.filter((f) => f.id !== fenceId));
+    setStats((prev) => ({
+      ...prev,
+      total: prev.total - 1,
+      checked: prev.checked - (fence.checked ? 1 : 0),
+      remaining: prev.remaining - (fence.checked ? 0 : 1),
+      wings: recalcWings(fences.filter((f) => f.id !== fenceId)),
+    }));
+    setPendingDelete(fence);
+    showToast(""); // Clear first to allow re-render
+
+    // Show undo toast for 5 seconds, then actually delete
+    deleteTimeout.current = setTimeout(async () => {
+      try {
+        await fetch(`/api/fences/${fenceId}`, { method: "DELETE" });
+      } catch {
+        // If delete fails, restore
+        setFences((prev) => [...prev, fence]);
+        setStats((prev) => ({
+          ...prev,
+          total: prev.total + 1,
+          checked: prev.checked + (fence.checked ? 1 : 0),
+          remaining: prev.remaining + (fence.checked ? 0 : 1),
+        }));
+        showToast("❌ Kunde inte ta bort hinder");
+      }
+      setPendingDelete(null);
+      deleteTimeout.current = null;
+    }, 5000);
+  }
+
+  function handleUndoDelete() {
+    if (!pendingDelete) return;
+    if (deleteTimeout.current) {
+      clearTimeout(deleteTimeout.current);
+      deleteTimeout.current = null;
+    }
+    // Restore the fence
+    setFences((prev) => [...prev, pendingDelete]);
+    setStats((prev) => ({
+      ...prev,
+      total: prev.total + 1,
+      checked: prev.checked + (pendingDelete.checked ? 1 : 0),
+      remaining: prev.remaining + (pendingDelete.checked ? 0 : 1),
+      wings: recalcWings([...fences, pendingDelete]),
+    }));
+    setPendingDelete(null);
+    showToast("↩️ Aterstallen");
+  }
+
   // ─── Filter & Search ─────────────────────────────────────
 
   const filteredFences = fences.filter((f) => {
@@ -729,8 +844,17 @@ export function FenceList() {
                     onImageCaptionChange={handleImageCaptionChange}
                     onOpenGallery={handleOpenGallery}
                     onMoveFence={handleMoveFence}
+                    onDeleteFence={handleDeleteFence}
                   />
                 ))}
+
+                {/* Add fence to section */}
+                <button
+                  onClick={() => handleAddFence(sectionId)}
+                  className="mb-3 w-full rounded-lg border-2 border-dashed border-gray-200 py-1.5 text-xs font-semibold text-gray-400 hover:border-[#2F5496] hover:text-[#2F5496]"
+                >
+                  + Lagg till hinder
+                </button>
               </div>
             );
           }
@@ -781,8 +905,21 @@ export function FenceList() {
         className="hidden"
       />
 
+      {/* Undo delete toast */}
+      {pendingDelete && (
+        <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 animate-[fadeUp_0.3s_ease] rounded-[10px] bg-[#333] px-5 py-3 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
+          <span>🗑️ &quot;{pendingDelete.name}&quot; borttaget</span>
+          <button
+            onClick={handleUndoDelete}
+            className="ml-3 rounded-md bg-white/20 px-3 py-1 text-xs font-bold text-white hover:bg-white/30"
+          >
+            Angra
+          </button>
+        </div>
+      )}
+
       {/* Toast */}
-      {toast && (
+      {toast && !pendingDelete && (
         <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 animate-[fadeUp_0.3s_ease] rounded-[10px] bg-[#333] px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_16px_rgba(0,0,0,0.2)]">
           {toast}
         </div>

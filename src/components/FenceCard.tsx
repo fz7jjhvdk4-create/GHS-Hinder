@@ -28,6 +28,7 @@ interface FenceCardProps {
   onImageCaptionChange: (imageId: string, fenceId: string, caption: string) => void;
   onOpenGallery: (fenceId: string, imageIndex: number) => void;
   onMoveFence: (fenceId: string, newSectionId: string) => void;
+  onDeleteFence: (fenceId: string) => void;
 }
 
 const COMPONENT_TYPES = ["Wings", "Poles", "Fillers", "Planks"];
@@ -43,6 +44,7 @@ export function FenceCard({
   onImageUpload,
   onOpenGallery,
   onMoveFence,
+  onDeleteFence,
 }: FenceCardProps) {
   const [notesValue, setNotesValue] = useState(fence.notes);
   const [showAddComp, setShowAddComp] = useState(false);
@@ -213,12 +215,19 @@ export function FenceCard({
                 {fence.checked ? "✓" : ""}
               </button>
               <h3
-                className={`text-base font-bold ${
+                className={`flex-1 text-base font-bold ${
                   fence.checked ? "text-[#27ae60]" : "text-[#1a3a6e]"
                 }`}
               >
                 {fence.name}
               </h3>
+              <button
+                onClick={() => onDeleteFence(fence.id)}
+                className="shrink-0 rounded px-1.5 py-0.5 text-xs text-gray-300 hover:bg-red-50 hover:text-red-500"
+                title="Ta bort hinder"
+              >
+                🗑️
+              </button>
             </div>
 
             {/* Move to section */}
