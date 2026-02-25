@@ -45,14 +45,16 @@ export function ColorPatternSVG({
 
   const rx = type === "pole" ? svgHeight / 2 : 3;
 
-  // Build segments with pixel-perfect equal distribution
+  // Build segments using cumulative percentage rounding
+  // This ensures no gaps and exact total width regardless of segment sizes
   let segments: { x: number; w: number; color: string }[] = [];
   if (colorPattern.length > 0) {
-    const count = colorPattern.length;
-    segments = colorPattern.map((seg, i) => {
-      const x = Math.floor((svgWidth * i) / count);
-      const xNext = Math.floor((svgWidth * (i + 1)) / count);
-      return { x, w: xNext - x, color: seg.color };
+    let cumPercent = 0;
+    segments = colorPattern.map((seg) => {
+      const x = Math.round((cumPercent / 100) * svgWidth);
+      cumPercent += seg.percent;
+      const xEnd = Math.round((cumPercent / 100) * svgWidth);
+      return { x, w: xEnd - x, color: seg.color };
     });
   }
 

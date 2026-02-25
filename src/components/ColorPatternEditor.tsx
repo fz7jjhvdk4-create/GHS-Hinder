@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ColorPatternSVG } from "./ColorPatternSVG";
 import type { ColorSegment } from "./ColorPatternSVG";
 import { compressImage } from "@/lib/imageUtils";
@@ -17,7 +17,11 @@ interface EditorItem {
 
 interface ColorPatternEditorProps {
   item: EditorItem;
-  onSave: (id: string, colorPattern: ColorSegment[], colorImage: string) => void;
+  onSave: (
+    id: string,
+    colorPattern: ColorSegment[],
+    colorImage: string
+  ) => void;
   onClose: () => void;
 }
 
@@ -38,6 +42,8 @@ const PRESET_COLORS = [
   { color: "#1abc9c", label: "Turkos" },
 ];
 
+const MIN_SEGMENT_PERCENT = 5; // minimum 5% per segment
+
 export function ColorPatternEditor({
   item,
   onSave,
@@ -47,7 +53,6 @@ export function ColorPatternEditor({
     Array.isArray(item.colorPattern) && item.colorPattern.length > 0;
   const hasColorImage = !!item.colorImage;
 
-  // Default to "photo" if item has image but no pattern
   const defaultMode: EditorMode =
     hasColorImage && !hasColorPattern ? "photo" : "stripe";
 
@@ -93,6 +98,17 @@ export function ColorPatternEditor({
     }
     setSegments(newSegments);
     if (activeIdx >= clamped) setActiveIdx(clamped - 1);
+  }
+
+  function makeEqual() {
+    const count = segments.length;
+    const pct = Math.round((100 / count) * 100) / 100;
+    setSegments(
+      segments.map((s, i) => ({
+        ...s,
+        percent: i === count - 1 ? 100 - pct * (count - 1) : pct,
+      }))
+    );
   }
 
   function setColor(idx: number, color: string) {
@@ -181,7 +197,7 @@ export function ColorPatternEditor({
         {mode === "stripe" && (
           <div>
             {/* Live preview */}
-            <div className="mb-4 flex items-center justify-center rounded-lg bg-gray-50 p-4">
+            <div className="mb-2 flex items-center justify-center rounded-lg bg-gray-50 p-4">
               <ColorPatternSVG
                 colorPattern={segments}
                 type={item.type}
@@ -191,11 +207,31 @@ export function ColorPatternEditor({
               />
             </div>
 
-            {/* Segment count */}
+            {/* Interactive resize bar */}
+            {segments.length > 1 && (
+              <SegmentResizer
+                segments={segments}
+                onSegmentsChange={setSegments}
+                activeIdx={activeIdx}
+                onActiveChange={setActiveIdx}
+              />
+            )}
+
+            {/* Segment count + equal button */}
             <div className="mb-3">
-              <label className="mb-1.5 block text-xs font-semibold text-gray-500">
-                Antal falt
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="text-xs font-semibold text-gray-500">
+                  Antal falt
+                </label>
+                {segments.length > 1 && (
+                  <button
+                    onClick={makeEqual}
+                    className="rounded-md bg-gray-100 px-2.5 py-1 text-[10px] font-bold text-gray-500 hover:bg-gray-200"
+                  >
+                    ↔ Lika stora
+                  </button>
+                )}
+              </div>
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                   <button
@@ -214,7 +250,7 @@ export function ColorPatternEditor({
             </div>
 
             {/* Segment colors */}
-            <div className="mb-3 max-h-[160px] space-y-2 overflow-y-auto">
+            <div className="mb-3 max-h-[140px] space-y-1.5 overflow-y-auto">
               {segments.map((seg, i) => (
                 <div
                   key={i}
@@ -238,6 +274,9 @@ export function ColorPatternEditor({
                     className="h-5 flex-1 rounded"
                     style={{ backgroundColor: seg.color }}
                   />
+                  <span className="w-9 text-right text-[10px] font-medium text-gray-400">
+                    {Math.round(seg.percent)}%
+                  </span>
                 </div>
               ))}
             </div>
@@ -269,7 +308,6 @@ export function ColorPatternEditor({
         {/* ═══ PHOTO TAB ═══ */}
         {mode === "photo" && (
           <div>
-            {/* Hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -280,7 +318,6 @@ export function ColorPatternEditor({
             />
 
             {photoPreview ? (
-              /* Photo preview */
               <div className="mb-4">
                 <div className="flex items-center justify-center rounded-lg bg-gray-50 p-3">
                   <img
@@ -305,7 +342,6 @@ export function ColorPatternEditor({
                 </div>
               </div>
             ) : (
-              /* Upload area */
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
@@ -356,4 +392,169 @@ export function ColorPatternEditor({
       </div>
     </div>
   );
+}
+
+// ─── Interactive Segment Resizer ──────────────────────────
+
+interface SegmentResizerProps {
+  segments: ColorSegment[];
+  onSegmentsChange: (segments: ColorSegment[]) => void;
+  activeIdx: number;
+  onActiveChange: (idx: number) => void;
+}
+
+function SegmentResizer({
+  segments,
+  onSegmentsChange,
+  activeIdx,
+  onActiveChange,
+}: SegmentResizerProps) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    dividerIdx: number;
+    startX: number;
+    startPercents: number[];
+  } | null>(null);
+
+  // Get cumulative positions as pixel offsets
+  function getPixelX(event: React.TouchEvent | React.MouseEvent | TouchEvent | MouseEvent): number {
+    if (!barRef.current) return 0;
+    const rect = barRef.current.getBoundingClientRect();
+    const clientX =
+      "touches" in event
+        ? (event as TouchEvent).touches[0]?.clientX ?? 0
+        : (event as MouseEvent).clientX;
+    return Math.max(0, Math.min(clientX - rect.left, rect.width));
+  }
+
+  const handleDragStart = useCallback(
+    (dividerIdx: number, e: React.TouchEvent | React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragRef.current = {
+        dividerIdx,
+        startX: getPixelX(e),
+        startPercents: segments.map((s) => s.percent),
+      };
+
+      function handleMove(ev: TouchEvent | MouseEvent) {
+        if (!dragRef.current || !barRef.current) return;
+        const barWidth = barRef.current.getBoundingClientRect().width;
+        const currentX = getPixelX(ev);
+        const deltaX = currentX - dragRef.current.startX;
+        const deltaPct = (deltaX / barWidth) * 100;
+
+        const { dividerIdx: di, startPercents } = dragRef.current;
+        const leftPct = startPercents[di] + deltaPct;
+        const rightPct = startPercents[di + 1] - deltaPct;
+
+        // Enforce minimums
+        if (leftPct < MIN_SEGMENT_PERCENT || rightPct < MIN_SEGMENT_PERCENT)
+          return;
+
+        const newSegments = segments.map((s, i) => {
+          if (i === di) return { ...s, percent: Math.round(leftPct * 10) / 10 };
+          if (i === di + 1)
+            return { ...s, percent: Math.round(rightPct * 10) / 10 };
+          return s;
+        });
+        onSegmentsChange(newSegments);
+      }
+
+      function handleEnd() {
+        dragRef.current = null;
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleEnd);
+        window.removeEventListener("touchmove", handleMove);
+        window.removeEventListener("touchend", handleEnd);
+      }
+
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleEnd);
+      window.addEventListener("touchmove", handleMove, { passive: false });
+      window.addEventListener("touchend", handleEnd);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [segments, onSegmentsChange]
+  );
+
+  // Compute cumulative % for divider positions
+  const cumulativePercents: number[] = [];
+  let cum = 0;
+  for (const seg of segments) {
+    cum += seg.percent;
+    cumulativePercents.push(cum);
+  }
+
+  return (
+    <div className="mb-3">
+      <label className="mb-1.5 block text-xs font-semibold text-gray-500">
+        Dra i handtagen for att andra storlek
+      </label>
+      <div
+        ref={barRef}
+        className="relative h-10 w-full overflow-hidden rounded-lg border border-gray-200"
+        style={{ touchAction: "none" }}
+      >
+        {/* Colored segments */}
+        {segments.map((seg, i) => {
+          const left =
+            i === 0 ? 0 : cumulativePercents[i - 1];
+          return (
+            <div
+              key={i}
+              className={`absolute inset-y-0 transition-opacity ${activeIdx === i ? "" : "opacity-80"}`}
+              style={{
+                left: `${left}%`,
+                width: `${seg.percent}%`,
+                backgroundColor: seg.color,
+                borderRight:
+                  i < segments.length - 1
+                    ? "1px solid rgba(0,0,0,0.15)"
+                    : "none",
+              }}
+              onClick={() => onActiveChange(i)}
+            >
+              {/* Percent label inside segment */}
+              {seg.percent > 12 && (
+                <span
+                  className="absolute inset-0 flex items-center justify-center text-[10px] font-bold"
+                  style={{
+                    color: isLightColor(seg.color) ? "#333" : "#fff",
+                    textShadow: isLightColor(seg.color)
+                      ? "none"
+                      : "0 1px 2px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {Math.round(seg.percent)}%
+                </span>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Drag handles between segments */}
+        {segments.slice(0, -1).map((_, i) => (
+          <div
+            key={`handle-${i}`}
+            className="absolute inset-y-0 z-10 flex w-6 -translate-x-1/2 cursor-col-resize items-center justify-center"
+            style={{ left: `${cumulativePercents[i]}%` }}
+            onMouseDown={(e) => handleDragStart(i, e)}
+            onTouchStart={(e) => handleDragStart(i, e)}
+          >
+            <div className="h-6 w-1 rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.3),0_2px_4px_rgba(0,0,0,0.2)]" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function isLightColor(hex: string): boolean {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  // Relative luminance approximation
+  return r * 0.299 + g * 0.587 + b * 0.114 > 160;
 }
