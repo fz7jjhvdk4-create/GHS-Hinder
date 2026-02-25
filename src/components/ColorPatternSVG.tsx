@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 export interface ColorSegment {
   color: string;
   percent: number;
@@ -24,6 +26,8 @@ export function ColorPatternSVG({
   onClick,
   className = "",
 }: ColorPatternSVGProps) {
+  const clipId = useId();
+
   // Calculate proportional dimensions
   const lengthScale = length / 3.2; // normalize to max length
   const svgWidth = Math.round(maxWidth * lengthScale);
@@ -41,15 +45,14 @@ export function ColorPatternSVG({
 
   const rx = type === "pole" ? svgHeight / 2 : 3;
 
-  // Build segments
+  // Build segments with pixel-perfect equal distribution
   let segments: { x: number; w: number; color: string }[] = [];
   if (colorPattern.length > 0) {
-    let xOffset = 0;
+    const count = colorPattern.length;
     segments = colorPattern.map((seg, i) => {
-      const w = (seg.percent / 100) * svgWidth;
-      const s = { x: xOffset, w, color: seg.color };
-      xOffset += w;
-      return s;
+      const x = Math.floor((svgWidth * i) / count);
+      const xNext = Math.floor((svgWidth * (i + 1)) / count);
+      return { x, w: xNext - x, color: seg.color };
     });
   }
 
@@ -64,7 +67,7 @@ export function ColorPatternSVG({
     >
       {/* Clip path for rounded shape */}
       <defs>
-        <clipPath id={`clip-${svgWidth}-${svgHeight}`}>
+        <clipPath id={clipId}>
           <rect
             x={0}
             y={0}
@@ -77,14 +80,14 @@ export function ColorPatternSVG({
       </defs>
 
       {/* Color segments */}
-      <g clipPath={`url(#clip-${svgWidth}-${svgHeight})`}>
+      <g clipPath={`url(#${clipId})`}>
         {segments.length > 0 ? (
           segments.map((seg, i) => (
             <rect
               key={i}
               x={seg.x}
               y={0}
-              width={seg.w + 0.5}
+              width={seg.w}
               height={svgHeight}
               fill={seg.color}
             />

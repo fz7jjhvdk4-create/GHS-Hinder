@@ -151,22 +151,23 @@ export function PPList() {
 
   async function handleColorPatternSave(
     id: string,
-    colorPattern: ColorSegment[]
+    colorPattern: ColorSegment[],
+    colorImage: string
   ) {
     setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, colorPattern } : i))
+      prev.map((i) => (i.id === id ? { ...i, colorPattern, colorImage } : i))
     );
-    showToast("🎨 Fargmonster sparat");
+    showToast(colorImage ? "📷 Bild sparad" : "🎨 Fargmonster sparat");
 
     try {
       await fetch(`/api/pp/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ colorPattern }),
+        body: JSON.stringify({ colorPattern, colorImage }),
       });
     } catch {
       fetchData();
-      showToast("❌ Kunde inte spara fargmonster");
+      showToast("❌ Kunde inte spara");
     }
   }
 

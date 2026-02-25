@@ -17,6 +17,7 @@ export async function PATCH(
     if (typeof body.sectionId === "string") data.sectionId = body.sectionId;
     if (typeof body.name === "string") data.name = body.name;
     if (Array.isArray(body.colorPattern)) data.colorPattern = body.colorPattern;
+    if (typeof body.colorImage === "string") data.colorImage = body.colorImage;
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
