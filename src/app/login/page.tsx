@@ -45,12 +45,13 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-[#0a1628] via-[#1a3a6e] to-[#2F5496] px-4">
       <div className="w-full max-w-[380px] rounded-[20px] bg-white/95 px-9 py-10 text-center shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
-        {/* Logo placeholder — GHS horse icon */}
-        <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[#1a3a6e] to-[#2F5496]">
-          <span className="text-5xl">🏇</span>
-        </div>
+        <img
+          src="/ghs-logo.jpg"
+          alt="Gothenburg Horse Show"
+          className="mx-auto mb-4 h-28 w-auto"
+        />
 
-        <h1 className="mb-1 text-xl font-bold text-[#1a3a6e]">GHS 2026</h1>
+        <h1 className="mb-1 text-xl font-bold text-[#1a3a6e]">GHS</h1>
         <p className="mb-6 text-sm text-gray-400">Hinderinventering</p>
 
         <form onSubmit={handleSubmit}>

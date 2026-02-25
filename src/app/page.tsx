@@ -19,12 +19,14 @@ export default function Home() {
     <div className="min-h-[100dvh] bg-[#f0f2f5]">
       {/* Header */}
       <header className="flex items-center justify-center gap-4 bg-gradient-to-br from-[#0a1628] via-[#1a3a6e] to-[#2F5496] px-5 py-4 text-white shadow-lg">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20 sm:h-12 sm:w-12">
-          <span className="text-xl sm:text-2xl">🏇</span>
-        </div>
+        <img
+          src="/ghs-logo.jpg"
+          alt="Gothenburg Horse Show"
+          className="h-10 w-auto shrink-0 sm:h-12"
+        />
         <div className="text-center">
           <h1 className="text-base font-bold leading-tight sm:text-xl">
-            GHS 2026 — Hinderförteckning
+            GHS — Hinderförteckning
           </h1>
           <p className="text-[10px] text-white/70 sm:text-xs">
             Gothenburg Horse Show
