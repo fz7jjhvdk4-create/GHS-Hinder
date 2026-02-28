@@ -174,7 +174,7 @@ export function ColorPatternEditor({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-bold text-gray-800">
@@ -234,7 +234,7 @@ export function ColorPatternEditor({
                 type={item.type}
                 length={item.length}
                 width={item.width}
-                maxWidth={260}
+                maxWidth={420}
               />
             </div>
 
@@ -285,7 +285,7 @@ export function ColorPatternEditor({
             </div>
 
             {/* Segment colors */}
-            <div className="mb-3 max-h-[140px] space-y-1.5 overflow-y-auto">
+            <div className="mb-3 max-h-[200px] space-y-1.5 overflow-y-auto">
               {segments.map((seg, i) => (
                 <div
                   key={i}
@@ -539,7 +539,7 @@ function SegmentResizer({
       </label>
       <div
         ref={barRef}
-        className="relative h-10 w-full overflow-hidden rounded-lg border border-gray-200"
+        className="relative h-14 w-full overflow-hidden rounded-lg border border-gray-200"
         style={{ touchAction: "none" }}
       >
         {/* Colored segments */}
@@ -588,7 +588,7 @@ function SegmentResizer({
             onMouseDown={(e) => handleDragStart(i, e)}
             onTouchStart={(e) => handleDragStart(i, e)}
           >
-            <div className="h-6 w-1 rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.3),0_2px_4px_rgba(0,0,0,0.2)]" />
+            <div className="h-8 w-1.5 rounded-full bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.3),0_2px_4px_rgba(0,0,0,0.2)]" />
           </div>
         ))}
       </div>
