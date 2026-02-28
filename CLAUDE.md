@@ -37,8 +37,10 @@ ghs-hinder-app/
       FenceCard.tsx         # Individual fence card
       PPList.tsx            # Poles & Planks list
       PPCard.tsx            # Individual PP card
-      ColorPatternEditor.tsx # Dual-mode: SVG stripes + photo upload
-      ColorPatternSVG.tsx   # SVG renderer for color patterns
+      ColorPatternEditor.tsx # Tri-mode: SVG stripes + photo upload + advanced plank editor
+      ColorPatternSVG.tsx   # SVG dispatcher (simple stripes or advanced)
+      AdvancedPatternSVG.tsx # SVG renderer for advanced plank patterns
+      AdvancedPatternEditorPanel.tsx # Advanced plank editor (height, bg, ends, diagonals, text, logo)
       ImageGallery.tsx      # Full-screen image gallery
       SectionHeader.tsx     # Collapsible section headers
       ConnectionStatus.tsx  # Online/offline/syncing banner
@@ -48,6 +50,8 @@ ghs-hinder-app/
     lib/
       db.ts                 # Prisma client (Neon adapter)
       auth.ts               # PIN validation, session management
+      advancedPattern.ts    # Types, type guard, height resolver for advanced patterns
+      advancedPatternSvg.ts # Shared SVG geometry computation (client, server, export)
       imageUtils.ts         # Shared image compression
       offlineStore.ts       # IndexedDB: API cache + mutation queue
       syncManager.ts        # cachedFetch + mutationFetch + replayQueue
@@ -73,7 +77,7 @@ ghs-hinder-app/
 - **Fence** — obstacles with images and components
 - **FenceImage** — photos (base64 in `imageUrl`), cascade delete
 - **FenceComponent** — Wings/Poles/Fillers (type, count, description, bomId)
-- **PoleOrPlank** — poles/planks/gates with `colorPattern` (JSON) and `colorImage` (base64 Text)
+- **PoleOrPlank** — poles/planks/gates with `colorPattern` (JSON), `colorImage` (base64 Text), `height` (0=auto, 1=smal, 2=normal, 3=bred)
 
 ## Auth
 
@@ -110,11 +114,20 @@ All mutations use optimistic UI updates:
 - PublishTab provides copy-link UI + "open in new tab" link
 
 ### Color Patterns (PP)
-- Dual-mode editor: "Rander" (SVG stripes) + "Foto" (photo upload)
+- Tri-mode editor: "Rander" (SVG stripes) + "Foto" (photo upload) + "Avancerad" (planks/gates only)
 - SVG uses cumulative percentage rounding for pixel-perfect segments
 - Draggable segment resizer with touch+mouse support
 - Up to 20 segments, MIN_SEGMENT_PERCENT = 2%
 - SVG heights: pole=8px, plank=12px, gate=24px, rx=1 (straight ends)
+
+### Advanced Plank Patterns (US-011)
+- Discriminated union in `colorPattern` JSON: `Array` = simple stripes, `{mode:"advanced",...}` = advanced
+- `isAdvancedPattern()` type guard detects format
+- Features: background color, end colors, diagonal stripes (pattern+rotate), text overlay, logo (base64)
+- Height field: 0=auto, 1=smal(8px), 2=normal(12px), 3=bred(24px)
+- Shared geometry: `computeAdvancedSvgGeometry()` used by client, server (/view), and HTML export
+- "Avancerad" tab hidden for poles (only shown for plank/gate types)
+- Editor sections: collapsible panels with live SVG preview
 
 ## Design System
 
@@ -157,3 +170,4 @@ npx prisma generate       # Generate client
 | US-008 | Skapa och ta bort hinder | ✅ |
 | US-009 | Publik export (skrivskoddad HTML) | ✅ |
 | US-010 | Realtidssynk och offline-stod | ✅ |
+| US-011 | Avancerad SVG-generator for plankor | ✅ |

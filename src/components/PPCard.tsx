@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { ColorPatternSVG } from "./ColorPatternSVG";
 import type { ColorSegment } from "./ColorPatternSVG";
+import { isAdvancedPattern } from "@/lib/advancedPattern";
 
 interface PPSection {
   id: string;
@@ -18,8 +19,10 @@ export interface PPItem {
   type: string;
   length: number;
   width: number;
-  colorPattern: ColorSegment[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  colorPattern: ColorSegment[] | any;
   colorImage: string;
+  height: number;
   checked: boolean;
   count: number;
   bomId: string;
@@ -125,7 +128,8 @@ export function PPCard({
   );
 
   const hasColorPattern =
-    Array.isArray(item.colorPattern) && item.colorPattern.length > 0;
+    isAdvancedPattern(item.colorPattern) ||
+    (Array.isArray(item.colorPattern) && item.colorPattern.length > 0);
   const hasColorImage = !!item.colorImage;
 
   return (
@@ -144,6 +148,7 @@ export function PPCard({
               type={item.type}
               length={item.length}
               width={item.width}
+              height={item.height}
               maxWidth={140}
               onClick={() => onEditColorPattern(item.id)}
               className="hover:opacity-80"

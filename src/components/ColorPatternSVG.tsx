@@ -1,6 +1,10 @@
 "use client";
 
 import { useId } from "react";
+import { isAdvancedPattern } from "@/lib/advancedPattern";
+import type { AdvancedColorPattern } from "@/lib/advancedPattern";
+import { AdvancedPatternSVG } from "./AdvancedPatternSVG";
+import { resolveHeight } from "@/lib/advancedPattern";
 
 export interface ColorSegment {
   color: string;
@@ -8,10 +12,12 @@ export interface ColorSegment {
 }
 
 interface ColorPatternSVGProps {
-  colorPattern: ColorSegment[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  colorPattern: ColorSegment[] | AdvancedColorPattern | any;
   type: string; // "pole" | "plank" | "gate"
   length: number; // 2.5, 3.0, 3.2
   width: number; // 0.1, 0.2
+  height?: number; // 0=auto, 1=smal, 2=normal, 3=bred
   maxWidth?: number;
   onClick?: () => void;
   className?: string;
@@ -22,35 +28,43 @@ export function ColorPatternSVG({
   type,
   length,
   width,
+  height = 0,
   maxWidth = 160,
   onClick,
   className = "",
 }: ColorPatternSVGProps) {
+  // Dispatch to AdvancedPatternSVG if advanced mode
+  if (isAdvancedPattern(colorPattern)) {
+    return (
+      <AdvancedPatternSVG
+        pattern={colorPattern}
+        type={type}
+        length={length}
+        width={width}
+        maxWidth={maxWidth}
+        onClick={onClick}
+        className={className}
+      />
+    );
+  }
+
+  // Simple stripe mode (existing logic)
+  const simplePattern: ColorSegment[] = Array.isArray(colorPattern) ? colorPattern : [];
   const clipId = useId();
 
   // Calculate proportional dimensions
   const lengthScale = length / 3.2; // normalize to max length
   const svgWidth = Math.round(maxWidth * lengthScale);
-
-  let svgHeight: number;
-  if (type === "gate") {
-    svgHeight = 24;
-  } else if (width >= 0.2) {
-    // plank
-    svgHeight = 12;
-  } else {
-    // pole
-    svgHeight = 8;
-  }
+  const svgHeight = resolveHeight(type, width, height);
 
   const rx = 1; // straight/flat ends to match imported photos
 
   // Build segments using cumulative percentage rounding
   // This ensures no gaps and exact total width regardless of segment sizes
   let segments: { x: number; w: number; color: string }[] = [];
-  if (colorPattern.length > 0) {
+  if (simplePattern.length > 0) {
     let cumPercent = 0;
-    segments = colorPattern.map((seg) => {
+    segments = simplePattern.map((seg) => {
       const x = Math.round((cumPercent / 100) * svgWidth);
       cumPercent += seg.percent;
       const xEnd = Math.round((cumPercent / 100) * svgWidth);

@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { Metadata } from "next";
 import { PrintButton } from "./PrintButton";
+import { isAdvancedPattern } from "@/lib/advancedPattern";
+import { computeAdvancedSvgGeometry } from "@/lib/advancedPatternSvg";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,7 @@ interface PPWithRelation {
   colorImage: string;
   length: number;
   width: number;
+  height: number;
   sectionId: string;
   section: { id: string; name: string; color: string };
 }
@@ -255,6 +258,8 @@ export default async function PublicViewPage() {
                             alt=""
                             className="mr-1.5 inline-block h-3.5 w-[80px] rounded-sm object-contain align-middle"
                           />
+                        ) : isAdvancedPattern(p.colorPattern) ? (
+                          <AdvancedPatternSVGInline pattern={p.colorPattern} type={p.type} length={p.length} width={p.width} />
                         ) : (
                           <ColorPatternSVGInline colorPattern={p.colorPattern} type={p.type} length={p.length} width={p.width} />
                         )}
@@ -316,6 +321,87 @@ function ColorPatternSVGInline({ colorPattern, type, length, width }: { colorPat
         ))}
       </g>
       <rect x={0.5} y={0.5} width={svgWidth - 1} height={svgHeight - 1} fill="none" stroke="#94a3b8" strokeWidth={0.5} rx={1} ry={1} />
+    </svg>
+  );
+}
+
+let acpCounter = 0;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function AdvancedPatternSVGInline({ pattern, type, length, width }: { pattern: any; type: string; length: number; width: number }) {
+  if (!isAdvancedPattern(pattern)) return null;
+  const geo = computeAdvancedSvgGeometry(pattern, type, length, width, 80);
+  const clipId = `acp-v-${++acpCounter}`;
+  const diagId = `adp-v-${acpCounter}`;
+
+  return (
+    <svg
+      width={geo.svgWidth}
+      height={geo.svgHeight}
+      viewBox={`0 0 ${geo.svgWidth} ${geo.svgHeight}`}
+      className="mr-1.5 inline-block rounded-sm align-middle"
+    >
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={0} y={0} width={geo.svgWidth} height={geo.svgHeight} rx={1} ry={1} />
+        </clipPath>
+        {geo.diagonalPattern && (
+          <pattern
+            id={diagId}
+            width={geo.diagonalPattern.patternWidth * geo.diagonalPattern.colors.length}
+            height={geo.diagonalPattern.patternWidth * geo.diagonalPattern.colors.length}
+            patternUnits="userSpaceOnUse"
+            patternTransform={`rotate(${geo.diagonalPattern.angle})`}
+          >
+            {geo.diagonalPattern.colors.map((color, i) => (
+              <rect
+                key={i}
+                x={i * geo.diagonalPattern!.patternWidth}
+                y={0}
+                width={geo.diagonalPattern!.patternWidth}
+                height={geo.diagonalPattern!.patternWidth * geo.diagonalPattern!.colors.length}
+                fill={color}
+              />
+            ))}
+          </pattern>
+        )}
+      </defs>
+      <g clipPath={`url(#${clipId})`}>
+        <rect x={0} y={0} width={geo.svgWidth} height={geo.svgHeight} fill={geo.background} />
+        {geo.diagonalPattern && (
+          <rect x={0} y={0} width={geo.svgWidth} height={geo.svgHeight} fill={`url(#${diagId})`} />
+        )}
+        {geo.endRects && (
+          <>
+            <rect x={geo.endRects.leftX} y={0} width={geo.endRects.width} height={geo.svgHeight} fill={geo.endRects.fill} />
+            <rect x={geo.endRects.rightX} y={0} width={geo.endRects.width} height={geo.svgHeight} fill={geo.endRects.fill} />
+          </>
+        )}
+        {geo.logoElement && (
+          <image
+            href={geo.logoElement.href}
+            x={geo.logoElement.x}
+            y={geo.logoElement.y}
+            width={geo.logoElement.width}
+            height={geo.logoElement.height}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        )}
+        {geo.textElement && (
+          <text
+            x={geo.textElement.x}
+            y={geo.textElement.y}
+            fontSize={geo.textElement.fontSize}
+            fontWeight={geo.textElement.fontWeight}
+            fill={geo.textElement.fill}
+            textAnchor={geo.textElement.anchor as "start" | "middle" | "end"}
+            dominantBaseline="central"
+            fontFamily="sans-serif"
+          >
+            {geo.textElement.content}
+          </text>
+        )}
+      </g>
+      <rect x={0.5} y={0.5} width={geo.svgWidth - 1} height={geo.svgHeight - 1} fill="none" stroke="#94a3b8" strokeWidth={0.5} rx={1} ry={1} />
     </svg>
   );
 }

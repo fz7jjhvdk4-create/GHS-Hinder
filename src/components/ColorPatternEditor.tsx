@@ -4,6 +4,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { ColorPatternSVG } from "./ColorPatternSVG";
 import type { ColorSegment } from "./ColorPatternSVG";
 import { compressImage } from "@/lib/imageUtils";
+import { isAdvancedPattern, DEFAULT_ADVANCED_PATTERN } from "@/lib/advancedPattern";
+import type { AdvancedColorPattern } from "@/lib/advancedPattern";
+import { AdvancedPatternEditorPanel } from "./AdvancedPatternEditorPanel";
 
 interface EditorItem {
   id: string;
@@ -11,7 +14,9 @@ interface EditorItem {
   type: string;
   length: number;
   width: number;
-  colorPattern: ColorSegment[];
+  height: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  colorPattern: ColorSegment[] | any;
   colorImage: string;
 }
 
@@ -19,13 +24,15 @@ interface ColorPatternEditorProps {
   item: EditorItem;
   onSave: (
     id: string,
-    colorPattern: ColorSegment[],
-    colorImage: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    colorPattern: ColorSegment[] | AdvancedColorPattern | any,
+    colorImage: string,
+    height?: number
   ) => void;
   onClose: () => void;
 }
 
-type EditorMode = "stripe" | "photo";
+type EditorMode = "stripe" | "photo" | "advanced";
 
 const PRESET_COLORS = [
   { color: "#ffffff", label: "Vit" },
@@ -49,18 +56,28 @@ export function ColorPatternEditor({
   onSave,
   onClose,
 }: ColorPatternEditorProps) {
+  const hasAdvanced = isAdvancedPattern(item.colorPattern);
   const hasColorPattern =
-    Array.isArray(item.colorPattern) && item.colorPattern.length > 0;
+    !hasAdvanced && Array.isArray(item.colorPattern) && item.colorPattern.length > 0;
   const hasColorImage = !!item.colorImage;
+  const canShowAdvanced = item.type !== "pole";
 
-  const defaultMode: EditorMode =
-    hasColorImage && !hasColorPattern ? "photo" : "stripe";
+  const defaultMode: EditorMode = hasAdvanced
+    ? "advanced"
+    : hasColorImage && !hasColorPattern
+      ? "photo"
+      : "stripe";
 
   const [mode, setMode] = useState<EditorMode>(defaultMode);
 
+  // Advanced pattern state
+  const [advancedPattern, setAdvancedPattern] = useState<AdvancedColorPattern>(
+    hasAdvanced ? (item.colorPattern as AdvancedColorPattern) : { ...DEFAULT_ADVANCED_PATTERN }
+  );
+
   // ── Stripe state ──
   const initialSegments =
-    item.colorPattern.length > 0
+    Array.isArray(item.colorPattern) && item.colorPattern.length > 0
       ? item.colorPattern
       : [
           { color: "#e74c3c", percent: 50 },
@@ -142,6 +159,8 @@ export function ColorPatternEditor({
   function handleSave() {
     if (mode === "stripe") {
       onSave(item.id, segments, "");
+    } else if (mode === "advanced") {
+      onSave(item.id, advancedPattern, "", advancedPattern.height);
     } else {
       onSave(item.id, [], photoPreview);
     }
@@ -191,6 +210,18 @@ export function ColorPatternEditor({
           >
             📷 Foto
           </button>
+          {canShowAdvanced && (
+            <button
+              onClick={() => setMode("advanced")}
+              className={`flex-1 rounded-md py-2 text-xs font-bold transition-colors ${
+                mode === "advanced"
+                  ? "bg-white text-[#b8860b] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              ✦ Avancerad
+            </button>
+          )}
         </div>
 
         {/* ═══ STRIPE TAB ═══ */}
@@ -375,6 +406,17 @@ export function ColorPatternEditor({
               eller speciella designer. Fotot visas som miniatyrbild pa kortet.
             </p>
           </div>
+        )}
+
+        {/* ═══ ADVANCED TAB ═══ */}
+        {mode === "advanced" && (
+          <AdvancedPatternEditorPanel
+            pattern={advancedPattern}
+            onChange={setAdvancedPattern}
+            itemType={item.type}
+            itemLength={item.length}
+            itemWidth={item.width}
+          />
         )}
 
         {/* Actions */}

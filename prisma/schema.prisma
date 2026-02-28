@@ -80,8 +80,9 @@ model PoleOrPlank {
   type         String   // "pole" | "plank" | "gate"
   length       Float    @default(2.5)   // 2.5 | 3.0 | 3.2
   width        Float    @default(0.1)   // 0.1 for poles, variable for planks
-  colorPattern Json     @default("[]")  // Array of { color: string, percent: number }
+  colorPattern Json     @default("[]")  // Array<{color,percent}> or {mode:"advanced",...}
   colorImage   String   @default("") @db.Text  // base64 PNG for legacy import
+  height       Int      @default(0)    // 0=auto, 1=smal(8px), 2=normal(12px), 3=bred(24px)
   checked      Boolean  @default(false)
   count        Int      @default(0)
   bomId        String   @default("")

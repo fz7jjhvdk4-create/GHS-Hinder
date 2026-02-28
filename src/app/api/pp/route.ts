@@ -39,7 +39,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, sectionId, type = "pole", length = 2.5, width = 0.1 } = body;
+    const { name, sectionId, type = "pole", length = 2.5, width = 0.1, height = 0 } = body;
 
     if (!name || !sectionId) {
       return NextResponse.json(
@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
         type,
         length,
         width,
+        height,
         sortOrder: (maxSort._max.sortOrder ?? -1) + 1,
       },
       include: { section: true },

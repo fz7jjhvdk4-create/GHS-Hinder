@@ -7,6 +7,7 @@ import { ColorPatternEditor } from "./ColorPatternEditor";
 import { cachedFetch, mutationFetch } from "@/lib/syncManager";
 import type { PPItem } from "./PPCard";
 import type { ColorSegment } from "./ColorPatternSVG";
+import type { AdvancedColorPattern } from "@/lib/advancedPattern";
 
 // ─── Types ────────────────────────────────────────────────
 interface PPSection {
@@ -149,18 +150,29 @@ export function PPList() {
 
   async function handleColorPatternSave(
     id: string,
-    colorPattern: ColorSegment[],
-    colorImage: string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    colorPattern: ColorSegment[] | AdvancedColorPattern | any,
+    colorImage: string,
+    height?: number
   ) {
     setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, colorPattern, colorImage } : i))
+      prev.map((i) => {
+        if (i.id !== id) return i;
+        const updates: Partial<PPItem> = { colorPattern, colorImage };
+        if (typeof height === "number") updates.height = height;
+        return { ...i, ...updates };
+      })
     );
     showToast(colorImage ? "📷 Bild sparad" : "🎨 Fargmonster sparat");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const body: any = { colorPattern, colorImage };
+    if (typeof height === "number") body.height = height;
 
     await mutationFetch(`/api/pp/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ colorPattern, colorImage }),
+      body: JSON.stringify(body),
     });
   }
 
@@ -227,6 +239,7 @@ export function PPList() {
       width,
       colorPattern: [],
       colorImage: "",
+      height: 0,
       checked: false,
       count: 0,
       bomId: "",

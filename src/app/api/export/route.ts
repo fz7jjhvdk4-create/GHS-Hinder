@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { isAdvancedPattern } from "@/lib/advancedPattern";
+import { computeAdvancedSvgGeometry } from "@/lib/advancedPatternSvg";
 
 export const dynamic = "force-dynamic";
 
@@ -123,6 +125,40 @@ function buildHTML(data: any): string {
     return `<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" style="vertical-align:middle;margin-right:6px;border-radius:2px"><clipPath id="${clipId}"><rect x="0" y="0" width="${svgWidth}" height="${svgHeight}" rx="1" ry="1"/></clipPath><g clip-path="url(#${clipId})">${rects}</g><rect x="0.5" y="0.5" width="${svgWidth - 1}" height="${svgHeight - 1}" fill="none" stroke="#94a3b8" stroke-width="0.5" rx="1" ry="1"/></svg>`;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function buildAdvancedPatternSVG(colorPattern: any, type: string, length: number, width: number): string {
+    if (!isAdvancedPattern(colorPattern)) return "";
+    const geo = computeAdvancedSvgGeometry(colorPattern, type, length, width, 80);
+    const clipId = `acp-${++svgCounter}`;
+    const diagId = `adp-${svgCounter}`;
+
+    let defs = `<clipPath id="${clipId}"><rect x="0" y="0" width="${geo.svgWidth}" height="${geo.svgHeight}" rx="1" ry="1"/></clipPath>`;
+    if (geo.diagonalPattern) {
+      const totalW = geo.diagonalPattern.patternWidth * geo.diagonalPattern.colors.length;
+      const rects = geo.diagonalPattern.colors.map((color, i) =>
+        `<rect x="${i * geo.diagonalPattern!.patternWidth}" y="0" width="${geo.diagonalPattern!.patternWidth}" height="${totalW}" fill="${esc(color)}"/>`
+      ).join("");
+      defs += `<pattern id="${diagId}" width="${totalW}" height="${totalW}" patternUnits="userSpaceOnUse" patternTransform="rotate(${geo.diagonalPattern.angle})">${rects}</pattern>`;
+    }
+
+    let content = `<rect x="0" y="0" width="${geo.svgWidth}" height="${geo.svgHeight}" fill="${esc(geo.background)}"/>`;
+    if (geo.diagonalPattern) {
+      content += `<rect x="0" y="0" width="${geo.svgWidth}" height="${geo.svgHeight}" fill="url(#${diagId})"/>`;
+    }
+    if (geo.endRects) {
+      content += `<rect x="${geo.endRects.leftX}" y="0" width="${geo.endRects.width}" height="${geo.svgHeight}" fill="${esc(geo.endRects.fill)}"/>`;
+      content += `<rect x="${geo.endRects.rightX}" y="0" width="${geo.endRects.width}" height="${geo.svgHeight}" fill="${esc(geo.endRects.fill)}"/>`;
+    }
+    if (geo.logoElement) {
+      content += `<image href="${geo.logoElement.href}" x="${geo.logoElement.x}" y="${geo.logoElement.y}" width="${geo.logoElement.width}" height="${geo.logoElement.height}" preserveAspectRatio="xMidYMid meet"/>`;
+    }
+    if (geo.textElement) {
+      content += `<text x="${geo.textElement.x}" y="${geo.textElement.y}" font-size="${geo.textElement.fontSize}" font-weight="${geo.textElement.fontWeight}" fill="${esc(geo.textElement.fill)}" text-anchor="${geo.textElement.anchor}" dominant-baseline="central" font-family="sans-serif">${esc(geo.textElement.content)}</text>`;
+    }
+
+    return `<svg width="${geo.svgWidth}" height="${geo.svgHeight}" viewBox="0 0 ${geo.svgWidth} ${geo.svgHeight}" style="vertical-align:middle;margin-right:6px;border-radius:2px"><defs>${defs}</defs><g clip-path="url(#${clipId})">${content}</g><rect x="0.5" y="0.5" width="${geo.svgWidth - 1}" height="${geo.svgHeight - 1}" fill="none" stroke="#94a3b8" stroke-width="0.5" rx="1" ry="1"/></svg>`;
+  }
+
   // Build fence sections HTML
   let fenceSectionsHTML = "";
   for (const section of fenceSections) {
@@ -210,7 +246,9 @@ function buildHTML(data: any): string {
             <td class="pp-name">
               ${p.colorImage
                 ? `<img class="pp-color" src="${p.colorImage}" />`
-                : buildColorPatternSVG(p.colorPattern, p.type, p.length, p.width)}
+                : isAdvancedPattern(p.colorPattern)
+                  ? buildAdvancedPatternSVG(p.colorPattern, p.type, p.length, p.width)
+                  : buildColorPatternSVG(p.colorPattern, p.type, p.length, p.width)}
               ${esc(p.name)}
             </td>
             <td class="pp-count">${p.count}</td>
