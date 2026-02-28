@@ -156,10 +156,11 @@ export default async function PublicViewPage() {
                       <img
                         src={f.images.find((i) => i.isPrimary)?.imageUrl || f.images[0].imageUrl}
                         alt={f.name}
-                        className="h-[100px] w-[140px] shrink-0 rounded-md object-cover max-[600px]:h-auto max-[600px]:max-h-[200px] max-[600px]:w-full print:h-[70px] print:w-[100px]"
+                        className="shrink-0 rounded-md bg-[#f0f2f5] object-contain max-[600px]:h-auto max-[600px]:max-h-[200px] max-[600px]:w-full"
+                        style={{ width: 160, height: 120 }}
                       />
                     ) : (
-                      <div className="flex h-[100px] w-[140px] shrink-0 items-center justify-center rounded-md bg-[#e8eef7] text-xs text-[#6688bb] max-[600px]:w-full">
+                      <div className="flex shrink-0 items-center justify-center rounded-md bg-[#e8eef7] text-xs text-[#6688bb] max-[600px]:w-full" style={{ width: 160, height: 120 }}>
                         Ingen bild
                       </div>
                     )}

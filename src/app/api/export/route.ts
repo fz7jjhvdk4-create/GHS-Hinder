@@ -287,7 +287,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .card{background:#fff;border-left:4px solid #2F5496;margin-bottom:2px;padding:10px 12px}
 .card.checked{border-left-color:#27ae60;background:#f6fdf8}
 .card-top{display:flex;gap:12px}
-.card-img{width:140px;height:100px;object-fit:cover;border-radius:6px;flex-shrink:0}
+.card-img{width:160px;height:120px;object-fit:contain;border-radius:6px;flex-shrink:0;background:#f0f2f5}
 .card-img.placeholder{display:flex;align-items:center;justify-content:center;background:#e8eef7;color:#6688bb;font-size:0.8em}
 .card-info{flex:1;min-width:0}
 .card-title{font-weight:700;font-size:0.95em;margin-bottom:6px}
@@ -311,7 +311,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .pp-bom{width:60px;color:#666}
 .pp-note{color:#888;font-size:0.9em}
 .footer{text-align:center;padding:24px;font-size:0.75em;color:#999}
-@media print{body{background:#fff}.header{padding:16px}.container{padding:8px}.card-img{width:100px;height:70px}}
+@media print{body{background:#fff}.header{padding:16px}.container{padding:8px}.card-img{width:120px;height:80px}}
 @media(max-width:600px){.card-top{flex-direction:column}.card-img{width:100%;height:auto;max-height:200px}}
 </style>
 </head>
