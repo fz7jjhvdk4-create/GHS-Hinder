@@ -104,7 +104,7 @@ export function ColorPatternEditor({
 
   // ── Stripe handlers ──
   function setSegmentCount(count: number) {
-    const clamped = Math.max(1, Math.min(20, count));
+    const clamped = Math.max(1, Math.min(30, count));
     const pct = Math.round((100 / clamped) * 100) / 100;
     const newSegments: ColorSegment[] = [];
     for (let i = 0; i < clamped; i++) {
@@ -267,7 +267,7 @@ export function ColorPatternEditor({
                   </span>
                   <button
                     onClick={() => setSegmentCount(segments.length + 1)}
-                    disabled={segments.length >= 20}
+                    disabled={segments.length >= 30}
                     className="flex h-8 w-8 items-center justify-center rounded-r-lg text-sm font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-30"
                   >
                     +
