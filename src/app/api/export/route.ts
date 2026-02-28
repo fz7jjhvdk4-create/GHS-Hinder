@@ -86,6 +86,43 @@ function buildHTML(data: any): string {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function getPrimaryImageUrl(images: any[]): string | null {
+    if (!images || images.length === 0) return null;
+    const primary = images.find((img: { isPrimary?: boolean }) => img.isPrimary);
+    return primary ? primary.imageUrl : images[0].imageUrl;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function getOtherImages(images: any[]): any[] {
+    if (!images || images.length <= 1) return [];
+    const primaryId = (images.find((img: { isPrimary?: boolean }) => img.isPrimary) || images[0]).id;
+    return images.filter((img: { id: string }) => img.id !== primaryId);
+  }
+
+  let svgCounter = 0;
+  function buildColorPatternSVG(colorPattern: { color: string; percent: number }[], type: string, length: number, width: number): string {
+    if (!Array.isArray(colorPattern) || colorPattern.length === 0) return "";
+    const clipId = `cp-${++svgCounter}`;
+    const maxWidth = 80;
+    const lengthScale = length / 3.2;
+    const svgWidth = Math.round(maxWidth * lengthScale);
+    let svgHeight: number;
+    if (type === "gate") svgHeight = 24;
+    else if (width >= 0.2) svgHeight = 12;
+    else svgHeight = 8;
+
+    let cumPercent = 0;
+    const rects = colorPattern.map((seg) => {
+      const x = Math.round((cumPercent / 100) * svgWidth);
+      cumPercent += seg.percent;
+      const xEnd = Math.round((cumPercent / 100) * svgWidth);
+      return `<rect x="${x}" y="0" width="${xEnd - x}" height="${svgHeight}" fill="${esc(seg.color)}"/>`;
+    }).join("");
+
+    return `<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" style="vertical-align:middle;margin-right:6px;border-radius:2px"><clipPath id="${clipId}"><rect x="0" y="0" width="${svgWidth}" height="${svgHeight}" rx="1" ry="1"/></clipPath><g clip-path="url(#${clipId})">${rects}</g><rect x="0.5" y="0.5" width="${svgWidth - 1}" height="${svgHeight - 1}" fill="none" stroke="#94a3b8" stroke-width="0.5" rx="1" ry="1"/></svg>`;
+  }
+
   // Build fence sections HTML
   let fenceSectionsHTML = "";
   for (const section of fenceSections) {
@@ -100,12 +137,15 @@ function buildHTML(data: any): string {
       ${sectionFences
         .map(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (f: any) => `
+          (f: any) => {
+            const primaryUrl = getPrimaryImageUrl(f.images);
+            const otherImages = getOtherImages(f.images);
+            return `
         <div class="card ${f.checked ? "checked" : ""}">
           <div class="card-top">
             ${
-              f.images?.length > 0
-                ? `<img class="card-img" src="${f.images[0].imageUrl}" alt="${esc(f.name)}" />`
+              primaryUrl
+                ? `<img class="card-img" src="${primaryUrl}" alt="${esc(f.name)}" />`
                 : '<div class="card-img placeholder">Ingen bild</div>'
             }
             <div class="card-info">
@@ -130,9 +170,8 @@ function buildHTML(data: any): string {
             </div>
           </div>
           ${
-            f.images?.length > 1
-              ? `<div class="gallery">${f.images
-                  .slice(1)
+            otherImages.length > 0
+              ? `<div class="gallery">${otherImages
                   .map(
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (img: any) =>
@@ -141,7 +180,8 @@ function buildHTML(data: any): string {
                   .join("")}</div>`
               : ""
           }
-        </div>`
+        </div>`;
+          }
         )
         .join("")}
     </div>`;
@@ -168,7 +208,9 @@ function buildHTML(data: any): string {
           <tr class="${p.checked ? "checked" : ""}">
             <td class="pp-check">${p.checked ? "✅" : "⬜"}</td>
             <td class="pp-name">
-              ${p.colorImage ? `<img class="pp-color" src="${p.colorImage}" />` : ""}
+              ${p.colorImage
+                ? `<img class="pp-color" src="${p.colorImage}" />`
+                : buildColorPatternSVG(p.colorPattern, p.type, p.length, p.width)}
               ${esc(p.name)}
             </td>
             <td class="pp-count">${p.count}</td>

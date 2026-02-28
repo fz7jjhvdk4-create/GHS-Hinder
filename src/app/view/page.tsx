@@ -20,6 +20,11 @@ interface FenceWithRelations {
   components: { id: string; type: string; count: number; description: string; bomId: string }[];
 }
 
+interface ColorSegment {
+  color: string;
+  percent: number;
+}
+
 interface PPWithRelation {
   id: string;
   name: string;
@@ -28,7 +33,11 @@ interface PPWithRelation {
   count: number;
   bomId: string;
   type: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  colorPattern: any;
   colorImage: string;
+  length: number;
+  width: number;
   sectionId: string;
   section: { id: string; name: string; color: string };
 }
@@ -240,12 +249,14 @@ export default async function PublicViewPage() {
                     <tr key={p.id} className={p.checked ? "bg-[#f6fdf8]" : ""}>
                       <td className="border-b border-gray-100 px-2 py-1.5 text-center">{p.checked ? "✅" : "⬜"}</td>
                       <td className="border-b border-gray-100 px-2 py-1.5 font-semibold whitespace-nowrap">
-                        {p.colorImage && (
+                        {p.colorImage ? (
                           <img
                             src={p.colorImage}
                             alt=""
                             className="mr-1.5 inline-block h-3.5 w-[80px] rounded-sm object-contain align-middle"
                           />
+                        ) : (
+                          <ColorPatternSVGInline colorPattern={p.colorPattern} type={p.type} length={p.length} width={p.width} />
                         )}
                         {p.name}
                       </td>
@@ -266,6 +277,46 @@ export default async function PublicViewPage() {
         GHS Hinderinventering — Uppdaterad {now}
       </footer>
     </div>
+  );
+}
+
+let cpCounter = 0;
+function ColorPatternSVGInline({ colorPattern, type, length, width }: { colorPattern: ColorSegment[]; type: string; length: number; width: number }) {
+  if (!Array.isArray(colorPattern) || colorPattern.length === 0) return null;
+  const clipId = `cp-${++cpCounter}`;
+  const maxWidth = 80;
+  const lengthScale = length / 3.2;
+  const svgWidth = Math.round(maxWidth * lengthScale);
+  let svgHeight: number;
+  if (type === "gate") svgHeight = 24;
+  else if (width >= 0.2) svgHeight = 12;
+  else svgHeight = 8;
+
+  let cumPercent = 0;
+  const segments = colorPattern.map((seg) => {
+    const x = Math.round((cumPercent / 100) * svgWidth);
+    cumPercent += seg.percent;
+    const xEnd = Math.round((cumPercent / 100) * svgWidth);
+    return { x, w: xEnd - x, color: seg.color };
+  });
+
+  return (
+    <svg
+      width={svgWidth}
+      height={svgHeight}
+      viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+      className="mr-1.5 inline-block rounded-sm align-middle"
+    >
+      <clipPath id={clipId}>
+        <rect x={0} y={0} width={svgWidth} height={svgHeight} rx={1} ry={1} />
+      </clipPath>
+      <g clipPath={`url(#${clipId})`}>
+        {segments.map((seg, i) => (
+          <rect key={i} x={seg.x} y={0} width={seg.w} height={svgHeight} fill={seg.color} />
+        ))}
+      </g>
+      <rect x={0.5} y={0.5} width={svgWidth - 1} height={svgHeight - 1} fill="none" stroke="#94a3b8" strokeWidth={0.5} rx={1} ry={1} />
+    </svg>
   );
 }
 
