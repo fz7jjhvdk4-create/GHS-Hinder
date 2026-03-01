@@ -132,7 +132,7 @@ function buildHTML(data: any): string {
     const clipId = `acp-${++svgCounter}`;
     const diagId = `adp-${svgCounter}`;
 
-    let defs = `<clipPath id="${clipId}"><rect x="0" y="0" width="${geo.svgWidth}" height="${geo.svgHeight}" rx="1" ry="1"/></clipPath>`;
+    let defs = `<clipPath id="${clipId}"><rect x="0" y="${geo.plankY}" width="${geo.svgWidth}" height="${geo.plankHeight}" rx="1" ry="1"/></clipPath>`;
     if (geo.diagonalPattern) {
       const totalW = geo.diagonalPattern.patternWidth * geo.diagonalPattern.colors.length;
       const rects = geo.diagonalPattern.colors.map((color, i) =>
@@ -141,22 +141,31 @@ function buildHTML(data: any): string {
       defs += `<pattern id="${diagId}" width="${totalW}" height="${totalW}" patternUnits="userSpaceOnUse" patternTransform="rotate(${geo.diagonalPattern.angle})">${rects}</pattern>`;
     }
 
-    let content = `<rect x="0" y="0" width="${geo.svgWidth}" height="${geo.svgHeight}" fill="${esc(geo.background)}"/>`;
+    let content = `<rect x="0" y="${geo.plankY}" width="${geo.svgWidth}" height="${geo.plankHeight}" fill="${esc(geo.background)}"/>`;
     if (geo.diagonalPattern) {
-      content += `<rect x="0" y="0" width="${geo.svgWidth}" height="${geo.svgHeight}" fill="url(#${diagId})"/>`;
+      content += `<rect x="0" y="${geo.plankY}" width="${geo.svgWidth}" height="${geo.plankHeight}" fill="url(#${diagId})"/>`;
     }
     if (geo.endRects) {
-      content += `<rect x="${geo.endRects.leftX}" y="0" width="${geo.endRects.width}" height="${geo.svgHeight}" fill="${esc(geo.endRects.fill)}"/>`;
-      content += `<rect x="${geo.endRects.rightX}" y="0" width="${geo.endRects.width}" height="${geo.svgHeight}" fill="${esc(geo.endRects.fill)}"/>`;
+      content += `<rect x="${geo.endRects.leftX}" y="${geo.plankY}" width="${geo.endRects.width}" height="${geo.plankHeight}" fill="${esc(geo.endRects.fill)}"/>`;
+      content += `<rect x="${geo.endRects.rightX}" y="${geo.plankY}" width="${geo.endRects.width}" height="${geo.plankHeight}" fill="${esc(geo.endRects.fill)}"/>`;
     }
-    if (geo.logoElement) {
+    if (geo.endPolygons) {
+      content += `<polygon points="${geo.endPolygons.leftPoints}" fill="${esc(geo.endPolygons.fill)}"/>`;
+      content += `<polygon points="${geo.endPolygons.rightPoints}" fill="${esc(geo.endPolygons.fill)}"/>`;
+    }
+    if (geo.logoElement && !geo.logoElement.overflow) {
       content += `<image href="${geo.logoElement.href}" x="${geo.logoElement.x}" y="${geo.logoElement.y}" width="${geo.logoElement.width}" height="${geo.logoElement.height}" preserveAspectRatio="xMidYMid meet"/>`;
     }
     if (geo.textElement) {
       content += `<text x="${geo.textElement.x}" y="${geo.textElement.y}" font-size="${geo.textElement.fontSize}" font-weight="${geo.textElement.fontWeight}" fill="${esc(geo.textElement.fill)}" text-anchor="${geo.textElement.anchor}" dominant-baseline="central" font-family="sans-serif">${esc(geo.textElement.content)}</text>`;
     }
 
-    return `<svg width="${geo.svgWidth}" height="${geo.svgHeight}" viewBox="0 0 ${geo.svgWidth} ${geo.svgHeight}" style="vertical-align:middle;margin-right:6px;border-radius:2px"><defs>${defs}</defs><g clip-path="url(#${clipId})">${content}</g><rect x="0.5" y="0.5" width="${geo.svgWidth - 1}" height="${geo.svgHeight - 1}" fill="none" stroke="#94a3b8" stroke-width="0.5" rx="1" ry="1"/></svg>`;
+    let afterClip = "";
+    if (geo.logoElement && geo.logoElement.overflow) {
+      afterClip += `<image href="${geo.logoElement.href}" x="${geo.logoElement.x}" y="${geo.logoElement.y}" width="${geo.logoElement.width}" height="${geo.logoElement.height}" preserveAspectRatio="xMidYMid meet"/>`;
+    }
+
+    return `<svg width="${geo.svgWidth}" height="${geo.svgHeight}" viewBox="0 0 ${geo.svgWidth} ${geo.svgHeight}" style="vertical-align:middle;margin-right:6px;border-radius:2px"><defs>${defs}</defs><g clip-path="url(#${clipId})">${content}</g>${afterClip}<rect x="0.5" y="${geo.plankY + 0.5}" width="${geo.svgWidth - 1}" height="${geo.plankHeight - 1}" fill="none" stroke="#94a3b8" stroke-width="0.5" rx="1" ry="1"/></svg>`;
   }
 
   // Build fence sections HTML

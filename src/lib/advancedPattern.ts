@@ -7,6 +7,7 @@ export interface AdvancedColorPattern {
   ends: {
     color: string;
     percent: number; // 5-25% each end
+    endStyle?: "rect" | "diagonal"; // default "rect"
   } | null;
   diagonals: {
     colors: string[]; // 2+ colors
@@ -24,6 +25,7 @@ export interface AdvancedColorPattern {
     dataUrl: string; // base64 compressed
     position: "center" | "left" | "right";
     scale: number; // 0.5-1.0
+    overflow?: boolean; // logo extends above/below plank
   } | null;
 }
 

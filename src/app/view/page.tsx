@@ -343,7 +343,7 @@ function AdvancedPatternSVGInline({ pattern, type, length, width }: { pattern: a
     >
       <defs>
         <clipPath id={clipId}>
-          <rect x={0} y={0} width={geo.svgWidth} height={geo.svgHeight} rx={1} ry={1} />
+          <rect x={0} y={geo.plankY} width={geo.svgWidth} height={geo.plankHeight} rx={1} ry={1} />
         </clipPath>
         {geo.diagonalPattern && (
           <pattern
@@ -367,17 +367,23 @@ function AdvancedPatternSVGInline({ pattern, type, length, width }: { pattern: a
         )}
       </defs>
       <g clipPath={`url(#${clipId})`}>
-        <rect x={0} y={0} width={geo.svgWidth} height={geo.svgHeight} fill={geo.background} />
+        <rect x={0} y={geo.plankY} width={geo.svgWidth} height={geo.plankHeight} fill={geo.background} />
         {geo.diagonalPattern && (
-          <rect x={0} y={0} width={geo.svgWidth} height={geo.svgHeight} fill={`url(#${diagId})`} />
+          <rect x={0} y={geo.plankY} width={geo.svgWidth} height={geo.plankHeight} fill={`url(#${diagId})`} />
         )}
         {geo.endRects && (
           <>
-            <rect x={geo.endRects.leftX} y={0} width={geo.endRects.width} height={geo.svgHeight} fill={geo.endRects.fill} />
-            <rect x={geo.endRects.rightX} y={0} width={geo.endRects.width} height={geo.svgHeight} fill={geo.endRects.fill} />
+            <rect x={geo.endRects.leftX} y={geo.plankY} width={geo.endRects.width} height={geo.plankHeight} fill={geo.endRects.fill} />
+            <rect x={geo.endRects.rightX} y={geo.plankY} width={geo.endRects.width} height={geo.plankHeight} fill={geo.endRects.fill} />
           </>
         )}
-        {geo.logoElement && (
+        {geo.endPolygons && (
+          <>
+            <polygon points={geo.endPolygons.leftPoints} fill={geo.endPolygons.fill} />
+            <polygon points={geo.endPolygons.rightPoints} fill={geo.endPolygons.fill} />
+          </>
+        )}
+        {geo.logoElement && !geo.logoElement.overflow && (
           <image
             href={geo.logoElement.href}
             x={geo.logoElement.x}
@@ -402,7 +408,17 @@ function AdvancedPatternSVGInline({ pattern, type, length, width }: { pattern: a
           </text>
         )}
       </g>
-      <rect x={0.5} y={0.5} width={geo.svgWidth - 1} height={geo.svgHeight - 1} fill="none" stroke="#94a3b8" strokeWidth={0.5} rx={1} ry={1} />
+      {geo.logoElement && geo.logoElement.overflow && (
+        <image
+          href={geo.logoElement.href}
+          x={geo.logoElement.x}
+          y={geo.logoElement.y}
+          width={geo.logoElement.width}
+          height={geo.logoElement.height}
+          preserveAspectRatio="xMidYMid meet"
+        />
+      )}
+      <rect x={0.5} y={geo.plankY + 0.5} width={geo.svgWidth - 1} height={geo.plankHeight - 1} fill="none" stroke="#94a3b8" strokeWidth={0.5} rx={1} ry={1} />
     </svg>
   );
 }

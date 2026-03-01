@@ -101,29 +101,49 @@ export function AdvancedPatternEditorPanel({
             <label className="text-[10px] font-semibold text-gray-500">Andpartier</label>
             <ToggleSwitch
               on={!!pattern.ends}
-              onToggle={(on) => update({ ends: on ? { color: "#b8860b", percent: 10 } : null })}
+              onToggle={(on) => update({ ends: on ? { color: "#b8860b", percent: 10, endStyle: "rect" } : null })}
             />
           </div>
           {pattern.ends && (
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={pattern.ends.color}
-                onChange={(e) => update({ ends: { ...pattern.ends!, color: e.target.value } })}
-                className="h-7 w-9 cursor-pointer rounded border border-gray-200"
-              />
-              <input
-                type="range"
-                min={5}
-                max={25}
-                value={pattern.ends.percent}
-                onChange={(e) => update({ ends: { ...pattern.ends!, percent: Number(e.target.value) } })}
-                className="flex-1 accent-[#b8860b]"
-              />
-              <span className="w-8 text-right text-[10px] font-medium text-gray-400">
-                {pattern.ends.percent}%
-              </span>
-            </div>
+            <>
+              <div className="mb-2 flex items-center gap-2">
+                <input
+                  type="color"
+                  value={pattern.ends.color}
+                  onChange={(e) => update({ ends: { ...pattern.ends!, color: e.target.value } })}
+                  className="h-7 w-9 cursor-pointer rounded border border-gray-200"
+                />
+                <input
+                  type="range"
+                  min={5}
+                  max={25}
+                  value={pattern.ends.percent}
+                  onChange={(e) => update({ ends: { ...pattern.ends!, percent: Number(e.target.value) } })}
+                  className="flex-1 accent-[#b8860b]"
+                />
+                <span className="w-8 text-right text-[10px] font-medium text-gray-400">
+                  {pattern.ends.percent}%
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] font-semibold text-gray-500">Form</label>
+                <div className="flex gap-1">
+                  {(["rect", "diagonal"] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => update({ ends: { ...pattern.ends!, endStyle: s } })}
+                      className={`rounded-md border px-2.5 py-1 text-xs font-bold ${
+                        (pattern.ends!.endStyle ?? "rect") === s
+                          ? "border-[#b8860b] bg-amber-50 text-[#b8860b]"
+                          : "border-gray-200 text-gray-500"
+                      }`}
+                    >
+                      {s === "rect" ? "▬ Rakt" : "◣ Diagonalt"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </Section>
 
@@ -324,6 +344,7 @@ export function AdvancedPatternEditorPanel({
                     dataUrl: compressed,
                     position: pattern.logo?.position || "center",
                     scale: pattern.logo?.scale || 0.8,
+                    overflow: pattern.logo?.overflow ?? false,
                   },
                 });
               } finally {
@@ -371,6 +392,14 @@ export function AdvancedPatternEditorPanel({
                   }
                   className="flex-1 accent-[#b8860b]"
                 />
+              </div>
+              <div className="mb-2 flex items-center gap-2">
+                <label className="text-[10px] font-semibold text-gray-500">Sticker ut</label>
+                <ToggleSwitch
+                  on={!!pattern.logo.overflow}
+                  onToggle={(on) => update({ logo: { ...pattern.logo!, overflow: on } })}
+                />
+                <span className="text-[9px] text-gray-400">Logga utanfor planka</span>
               </div>
               <div className="flex gap-2">
                 <button

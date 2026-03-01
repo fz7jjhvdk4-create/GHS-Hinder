@@ -6,12 +6,19 @@ import { resolveHeight } from "./advancedPattern";
 
 export interface SvgGeometry {
   svgWidth: number;
-  svgHeight: number;
+  svgHeight: number; // total SVG height (expanded when logo overflows)
+  plankY: number; // y-offset of plank within SVG (>0 when logo overflows)
+  plankHeight: number; // the actual plank height
   background: string;
   endRects: {
     leftX: number;
     rightX: number;
     width: number;
+    fill: string;
+  } | null;
+  endPolygons: {
+    leftPoints: string; // SVG polygon points
+    rightPoints: string;
     fill: string;
   } | null;
   diagonalPattern: {
@@ -34,6 +41,7 @@ export interface SvgGeometry {
     width: number;
     height: number;
     href: string;
+    overflow: boolean;
   } | null;
 }
 
@@ -46,18 +54,26 @@ export function computeAdvancedSvgGeometry(
 ): SvgGeometry {
   const lengthScale = length / 3.2;
   const svgWidth = Math.round(maxWidth * lengthScale);
-  const svgHeight = resolveHeight(type, width, pattern.height);
+  const plankHeight = resolveHeight(type, width, pattern.height);
 
-  // End rects
+  // End rects / polygons
   let endRects: SvgGeometry["endRects"] = null;
+  let endPolygons: SvgGeometry["endPolygons"] = null;
+  let endW = 0;
+
   if (pattern.ends) {
-    const endW = Math.round((pattern.ends.percent / 100) * svgWidth);
-    endRects = {
-      leftX: 0,
-      rightX: svgWidth - endW,
-      width: endW,
-      fill: pattern.ends.color,
-    };
+    endW = Math.round((pattern.ends.percent / 100) * svgWidth);
+    const endStyle = pattern.ends.endStyle ?? "rect";
+
+    if (endStyle !== "diagonal") {
+      endRects = {
+        leftX: 0,
+        rightX: svgWidth - endW,
+        width: endW,
+        fill: pattern.ends.color,
+      };
+    }
+    // diagonal polygons set below after plankY is computed
   }
 
   // Diagonal pattern
@@ -70,30 +86,29 @@ export function computeAdvancedSvgGeometry(
     };
   }
 
-  // Text
+  // Text (Y adjusted for plankY below)
   let textElement: SvgGeometry["textElement"] = null;
   if (pattern.text && pattern.text.content.trim()) {
     const align = pattern.text.align;
     let x: number;
     let anchor: string;
     if (align === "left") {
-      x = endRects ? endRects.width + 4 : 4;
+      x = endW > 0 ? endW + 4 : 4;
       anchor = "start";
     } else if (align === "right") {
-      x = endRects ? svgWidth - endRects.width - 4 : svgWidth - 4;
+      x = endW > 0 ? svgWidth - endW - 4 : svgWidth - 4;
       anchor = "end";
     } else {
       x = svgWidth / 2;
       anchor = "middle";
     }
 
-    // Scale font size proportionally to height
-    const scaleFactor = svgHeight / 24; // normalize to tallest
+    const scaleFactor = plankHeight / 24;
     const fontSize = Math.max(4, Math.round(pattern.text.fontSize * scaleFactor));
 
     textElement = {
       x,
-      y: svgHeight / 2,
+      y: plankHeight / 2, // relative to plank top
       content: pattern.text.content,
       fontSize,
       fontWeight: pattern.text.fontWeight,
@@ -104,17 +119,30 @@ export function computeAdvancedSvgGeometry(
 
   // Logo
   let logoElement: SvgGeometry["logoElement"] = null;
+  const isLogoOverflow = !!(pattern.logo && pattern.logo.overflow);
+
   if (pattern.logo && pattern.logo.dataUrl) {
     const scale = pattern.logo.scale;
-    const logoH = Math.round(svgHeight * scale * 0.8);
-    const logoW = logoH; // square aspect for simplicity
-    const y = Math.round((svgHeight - logoH) / 2);
+    let logoH: number;
+    let logoW: number;
+    let y: number;
+
+    if (isLogoOverflow) {
+      // Overflowing: logo is 2.5× plank height, centered on plank
+      logoH = Math.round(plankHeight * 2.5);
+      logoW = logoH;
+      y = Math.round(plankHeight / 2 - logoH / 2);
+    } else {
+      logoH = Math.round(plankHeight * scale * 0.8);
+      logoW = logoH;
+      y = Math.round((plankHeight - logoH) / 2);
+    }
 
     let x: number;
     if (pattern.logo.position === "left") {
-      x = endRects ? endRects.width + 2 : 2;
+      x = endW > 0 ? endW + 2 : 2;
     } else if (pattern.logo.position === "right") {
-      x = (endRects ? svgWidth - endRects.width : svgWidth) - logoW - 2;
+      x = (endW > 0 ? svgWidth - endW : svgWidth) - logoW - 2;
     } else {
       x = Math.round((svgWidth - logoW) / 2);
     }
@@ -125,14 +153,45 @@ export function computeAdvancedSvgGeometry(
       width: logoW,
       height: logoH,
       href: pattern.logo.dataUrl,
+      overflow: isLogoOverflow,
+    };
+  }
+
+  // Calculate plankY and total SVG height
+  let plankY = 0;
+  let totalSvgHeight = plankHeight;
+
+  if (logoElement && logoElement.overflow) {
+    const overflowTop = Math.max(0, -logoElement.y);
+    const overflowBottom = Math.max(0, logoElement.y + logoElement.height - plankHeight);
+    plankY = overflowTop;
+    totalSvgHeight = overflowTop + plankHeight + overflowBottom;
+    // Adjust logo Y for plankY offset
+    logoElement.y = logoElement.y + plankY;
+  }
+
+  // Adjust text Y for plankY offset
+  if (textElement) {
+    textElement.y = textElement.y + plankY;
+  }
+
+  // Set diagonal end polygons with correct plankY
+  if (pattern.ends && (pattern.ends.endStyle ?? "rect") === "diagonal" && endW > 0) {
+    endPolygons = {
+      leftPoints: `0,${plankY} ${endW},${plankY} 0,${plankY + plankHeight}`,
+      rightPoints: `${svgWidth},${plankY} ${svgWidth - endW},${plankY} ${svgWidth},${plankY + plankHeight}`,
+      fill: pattern.ends.color,
     };
   }
 
   return {
     svgWidth,
-    svgHeight,
+    svgHeight: totalSvgHeight,
+    plankY,
+    plankHeight,
     background: pattern.background,
     endRects,
+    endPolygons,
     diagonalPattern,
     textElement,
     logoElement,
