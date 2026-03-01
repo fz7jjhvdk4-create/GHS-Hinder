@@ -17,6 +17,7 @@ export function PublishTab() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -66,6 +67,40 @@ export function PublishTab() {
       alert("Exporten misslyckades. Forsok igen.");
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleReset() {
+    const confirmed = confirm(
+      "Vill du nollstalla alla ✅-markeringar?\n\n" +
+      "Alla hinder och bommar markeras som 'ej kontrollerade'.\n" +
+      "Fargmonster, bilder, anteckningar och ovrig data bevaras.\n\n" +
+      "Detta kan inte angras."
+    );
+    if (!confirmed) return;
+
+    setResetting(true);
+    try {
+      const res = await fetch("/api/admin/reset", { method: "POST" });
+      if (!res.ok) throw new Error("Reset failed");
+      const data = await res.json();
+      setStats((prev) =>
+        prev
+          ? {
+              ...prev,
+              fenceChecked: 0,
+              fenceRemaining: prev.fenceTotal,
+              ppChecked: 0,
+              ppRemaining: prev.ppTotal,
+            }
+          : prev
+      );
+      alert(`Klart! ${data.fences} hinder och ${data.pp} bommar nollstallda.`);
+    } catch (err) {
+      console.error("Reset failed:", err);
+      alert("Nollstallningen misslyckades. Forsok igen.");
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -228,6 +263,50 @@ export function PublishTab() {
             </span>
           ) : (
             "⬇️ Ladda ner HTML-fil"
+          )}
+        </button>
+      </div>
+
+      {/* Reset card */}
+      <div className="rounded-xl border-2 border-dashed border-red-200 bg-white p-5 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
+        <h2 className="mb-2 text-sm font-bold text-[#e74c3c]">
+          Nollstall inventering
+        </h2>
+        <p className="mb-4 text-xs text-gray-500">
+          Nollstaller alla ✅-markeringar pa hinder och bommar infor en ny
+          inventering. Alla fargmonster, bilder, sektioner och anteckningar
+          bevaras.
+        </p>
+        <button
+          onClick={handleReset}
+          disabled={resetting}
+          className="w-full rounded-lg border-2 border-[#e74c3c] bg-white px-4 py-2.5 text-sm font-bold text-[#e74c3c] shadow-sm hover:bg-red-50 active:bg-red-100 disabled:opacity-50"
+        >
+          {resetting ? (
+            <span className="inline-flex items-center gap-2">
+              <svg
+                className="h-4 w-4 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                />
+              </svg>
+              Nollstaller...
+            </span>
+          ) : (
+            "🔄 Nollstall alla markeringar"
           )}
         </button>
       </div>
