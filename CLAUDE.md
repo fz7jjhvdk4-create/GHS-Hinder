@@ -31,6 +31,7 @@ ghs-hinder-app/
         pp/                 # Poles & Planks CRUD (incl. name rename)
         sections/           # Sections CRUD + reorder
         export/             # Standalone HTML export (public, no auth)
+        admin/reset/        # POST: reset all checked marks (auth required)
         health/             # Health check for connectivity
     components/
       FenceList.tsx         # Fence inventory list (main)
@@ -117,15 +118,18 @@ All mutations use optimistic UI updates:
 - Tri-mode editor: "Rander" (SVG stripes) + "Foto" (photo upload) + "Avancerad" (planks/gates only)
 - SVG uses cumulative percentage rounding for pixel-perfect segments
 - Draggable segment resizer with touch+mouse support
-- Up to 20 segments, MIN_SEGMENT_PERCENT = 2%
+- Up to 30 segments, MIN_SEGMENT_PERCENT = 2%
 - SVG heights: pole=8px, plank=12px, gate=24px, rx=1 (straight ends)
 
 ### Advanced Plank Patterns (US-011)
 - Discriminated union in `colorPattern` JSON: `Array` = simple stripes, `{mode:"advanced",...}` = advanced
 - `isAdvancedPattern()` type guard detects format
-- Features: background color, end colors, diagonal stripes (pattern+rotate), text overlay, logo (base64)
+- Features: background color, end colors (rect or diagonal), diagonal stripes (pattern+rotate), text overlay, logo (base64, optional overflow)
+- Logo overflow: logo extends above/below plank (SVG viewBox expands, logo rendered outside clipPath)
+- Diagonal ends: triangular polygon ends instead of rectangular (endStyle: "rect" | "diagonal")
 - Height field: 0=auto, 1=smal(8px), 2=normal(12px), 3=bred(24px)
 - Shared geometry: `computeAdvancedSvgGeometry()` used by client, server (/view), and HTML export
+- SvgGeometry includes `plankY`/`plankHeight` offsets for logo overflow expansion
 - "Avancerad" tab hidden for poles (only shown for plank/gate types)
 - Editor sections: collapsible panels with live SVG preview
 
@@ -155,6 +159,23 @@ npx prisma generate       # Generate client
 - Push to `main` branch triggers Vercel auto-deploy
 - Production: https://ghs-hinder-app.vercel.app
 - GitHub: https://github.com/fz7jjhvdk4-create/GHS-Hinder
+
+### Inventory Reset
+- `POST /api/admin/reset` — resets all `checked` to `false` on fences and poles/planks
+- Only resets check marks — preserves colors, images, notes, sections, everything else
+- Accessible via "Nollstall inventering" button in Publicera tab
+- Uses `window.confirm()` before executing (destructive action)
+- Intended for starting a new inventory year
+
+## Lessons Learned
+
+1. **Tailwind CSS 4 JIT + arbitrary values in server components**: Arbitrary classes like `w-[160px]` may not generate CSS correctly in server components — the JIT compiler can miss them. **Fix:** Use inline `style={{ width: 160 }}` for server components when arbitrary values fail.
+
+2. **`object-contain` vs `object-cover` for inventory photos**: Use `object-contain` (not `object-cover`) to show full obstacle images without cropping. Add a neutral background color (`bg-[#f0f2f5]`) behind the image.
+
+3. **Shared SVG geometry pattern**: The `computeAdvancedSvgGeometry()` function is used by 4 different renderers (client component, editor preview, server page, HTML export string). All SVG rendering changes must be applied to all 4 places. Keep geometry computation in a single shared file.
+
+4. **SVG logo overflow architecture**: To render a logo that extends beyond the plank boundaries, expand the SVG viewBox height and offset the plank downward (`plankY`). Render the logo OUTSIDE the `<g clipPath>` group so it's not clipped, while keeping background/stripes/ends inside the clip.
 
 ## User Stories (all complete)
 
